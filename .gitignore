@@ -41,3 +41,4 @@ embeddings/faiss_index.bin_id_map.pkl
 
 # Environment
 .env
+-e \"\n# Git\n.gitignore\n.gitmsg\"  
