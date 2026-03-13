@@ -35,21 +35,21 @@
 pip install -r requirements.txt
 ```
 
-### 2. Настройка GigaChat API (БЕСПЛАТНО!)
+### 2. Настройка Mistral AI API
 
-**Получи ключи:**
-1. Зайди на https://developers.sber.ru/
-2. Создай проект и подключи GigaChat
-3. Создай API ключи (Client ID + Client Secret)
+**Получи ключ:**
+1. Зайди на https://console.mistral.ai/
+2. Зарегистрируйся
+3. Перейди в **API Keys**
+4. Создай ключ
 
 **Настрой .env:**
 ```bash
 # Создай файл .env в корне проекта
-echo GIGACHAT_CLIENT_ID=твой_id > .env
-echo GIGACHAT_CLIENT_SECRET=твой_secret >> .env
+echo MISTRAL_API_KEY=твой_ключ > .env
 ```
 
-**Подробная инструкция:** См. [GIGACHAT_SETUP.md](GIGACHAT_SETUP.md)
+**Бесплатно:** 30 дней trial, потом ~$0.15 за 1M токенов
 
 ### 3. Запуск веб-интерфейса
 
@@ -73,11 +73,10 @@ python book_rag.py --interactive
 | **Место** | 2 GB | 6 GB |
 | **GPU** | Не требуется | Любой (опционально) |
 
-### Для GigaChat API:
+### Для Mistral AI API:
 - Интернет соединение
-- API ключи GigaChat (Сбер)
-- **Бесплатно:** 1000 запросов/мес
-- **Работает в РФ без VPN**
+- API ключ Mistral AI
+- **Бесплатно:** 30 дней trial
 
 ## 📁 Структура проекта
 
@@ -154,26 +153,22 @@ curl -X POST http://localhost:5000/api/answer \
   -d '{"question": "Кто написал Шинель?", "k": 5}'
 ```
 
-## 💰 Тарифы GigaChat
+## 💰 Тарифы Mistral AI
 
 | Тариф | Лимит | Цена |
 |-------|-------|------|
-| **Free** | 1000 запросов/мес | 0 ₽ |
-| **Standard** | 10 000 запросов/мес | ~500 ₽/мес |
-| **Enterprise** | Индивидуально | По договору |
+| **Trial** | 30 дней | 0 € |
+| **Pay-as-you-go** | По факту | ~€0.15 за 1M токенов |
 
-Для личного использования хватит **бесплатного лимита**!
-
-См. [GIGACHAT_SETUP.md](GIGACHAT_SETUP.md) для подробной информации.
+После trial — оплата по использованию. Для тестов хватит бесплатно!
 
 ## ⚙️ Настройка
 
 ### Переменные окружения (.env)
 
 ```bash
-# GigaChat API (Сбер) - БЕСПЛАТНО
-GIGACHAT_CLIENT_ID=твой_client_id
-GIGACHAT_CLIENT_SECRET=твой_secret
+# Mistral AI API
+MISTRAL_API_KEY=твой_ключ
 ```
 
 ### Параметры обработки книг
@@ -243,18 +238,18 @@ print(result['quotes'])
 
 ## 🐛 Решение проблем
 
-### "GigaChat API error: 401"
-- Проверь API ключи в `.env`
-- Убедись что проект активен
-- Проверь что GigaChat подключен
+### "Mistral API error: 401"
+- Проверь API ключ в `.env`
+- Убедись что ключ активен
+- Проверь что trial период не истек
 
-### "GigaChat API error: 429"
-- Превышен лимит запросов (1000/мес)
-- Подожди следующего месяца
+### "Mistral API error: 429"
+- Превышен лимит запросов
+- Подожди или обнови тариф
 
-### "ModuleNotFoundError: No module named 'openai'"
+### "ModuleNotFoundError: No module named 'requests'"
 ```bash
-pip install openai requests
+pip install requests
 ```
 
 ### Книги не индексируются
