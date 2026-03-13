@@ -1,0 +1,14 @@
+v0.2 Web Interface & RAG System  
+  
+NEW FEATURES:  
+- Web UI with dark theme, file upload  
+- Search & Q/A modes with AI answers  
+- Auto GPU detection  
+  
+IMPROVEMENTS:  
+- Qwen2.5 models, multilingual embeddings  
+- Better chunking with chapter detection  
+- Russian language support  
+  
+TECH:  
+- CUDA support, fallback for low VRAM  

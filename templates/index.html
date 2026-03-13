@@ -526,7 +526,7 @@
                         <div class="result-header">
                             <div>
                                 <div class="result-book">📖 ${r.book}</div>
-                                <div class="result-position">${r.position || ''}</div>
+                                <div class="result-position">${r.position || r.chapter || ''}</div>
                             </div>
                             <div class="result-similarity">${r.similarity}% схожесть</div>
                         </div>
@@ -581,25 +581,52 @@
             }
             
             let html = `
-                <div class="answer-box">
-                    <h3 style="margin-bottom: 15px; color: var(--primary);">💬 Ответ:</h3>
-                    <div class="answer-text" style="line-height: 1.8; font-size: 1.05rem;">${data.answer || '⚠️ Не удалось сгенерировать ответ'}</div>
+                <div class="answer-box" style="margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px; color: var(--primary);">💬 Ответ AI:</h3>
+                    <div class="answer-text" style="
+                        line-height: 1.8;
+                        font-size: 1.05rem;
+                        background: var(--bg-input);
+                        padding: 20px;
+                        border-radius: 12px;
+                        border-left: 4px solid var(--primary);
+                    ">${data.answer.replace(/\n/g, '<br>')}</div>
             `;
 
             if (data.quotes && data.quotes.length > 0) {
-                html += '<div class="quotes"><h4 style="margin-bottom: 15px; color: var(--secondary);">📑 Источники из книг:</h4>';
+                html += `
+                    <div class="quotes" style="margin-top: 25px;">
+                        <h4 style="margin-bottom: 15px; color: var(--secondary);">📑 Источники (цитаты из книг):</h4>
+                `;
                 data.quotes.forEach((q, i) => {
                     html += `
-                        <div class="quote-item">
-                            <div class="quote-source">${i + 1}. ${q.source}</div>
-                            <div class="quote-text">"${q.text}"</div>
+                        <div class="quote-item" style="
+                            background: var(--bg-input);
+                            border-radius: 8px;
+                            padding: 15px;
+                            margin-bottom: 10px;
+                            border-left: 3px solid var(--secondary);
+                        ">
+                            <div class="quote-source" style="
+                                color: var(--secondary);
+                                font-weight: 600;
+                                margin-bottom: 8px;
+                                font-size: 0.9rem;
+                            ">${i + 1}. ${q.source}</div>
+                            <div class="quote-text" style="
+                                color: var(--text-muted);
+                                font-style: italic;
+                                line-height: 1.6;
+                                font-size: 0.95rem;
+                            ">${q.text.length > 250 ? q.text.substring(0, 250) + '...' : q.text}</div>
                         </div>
                     `;
                 });
+                html += '</div></div>';
+            } else {
                 html += '</div>';
             }
 
-            html += '</div>';
             container.innerHTML = html;
         }
 

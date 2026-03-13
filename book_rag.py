@@ -264,11 +264,12 @@ class BookRAG:
         Извлечение информации об источнике из контента
         
         Returns:
-            Словарь с книгой, позицией и главой
+            Словарь с книгой, позицией, главой и частью
         """
         book_name = "Неизвестно"
         position = ""
         chapter = ""
+        part = ""
         
         if chunk_id in self.embedding_processor.chunk_paths:
             path = self.embedding_processor.chunk_paths[chunk_id]
@@ -281,7 +282,7 @@ class BookRAG:
         
         # Пытаемся найти название книги/главы в начале контента
         if content:
-            lines = content.split('\n')[:5]  # Первые 5 строк
+            lines = content.split('\n')[:10]  # Первые 10 строк
             
             # Определяем название книги по имени файла
             if 'EvgeniyOnegin' in book_name or 'evgeniy' in book_name.lower():
@@ -293,31 +294,38 @@ class BookRAG:
             elif 'sample' in book_name.lower():
                 book_name = "NLP Статья"
             
-            # Ищем номер главы/части в первых строках
+            # Ищем главы, части, строфы в первых строках
             import re
             for line in lines:
                 line_clean = line.strip()
-                if len(line_clean) < 10 or len(line_clean) > 80:
+                if len(line_clean) < 5 or len(line_clean) > 100:
                     continue
                     
                 # Пропускаем URL и технические надписи
-                if 'http' in line_clean.lower() or 'royal' in line_clean.lower():
+                if 'http' in line_clean.lower() or 'royal' in line_clean.lower() or 'скачали' in line_clean.lower():
                     continue
                 
-                # Паттерны для глав: "Глава 1", "Часть I", "Песнь V" и т.д.
+                # Паттерны для глав, частей, строф
                 chapter_patterns = [
-                    (r'[Гг]лава\s*([IVX0-9]+)', 'Глава'),
-                    (r'[Чч]асть\s*([IVX0-9]+)', 'Часть'),
-                    (r'[Пп]еснь\s*([IVX0-9]+)', 'Песнь'),
-                    (r'[Сс]трофа\s*([IVX0-9]+)', 'Строфа'),
-                    (r'^([IVX]{1,3})\s*$', '№'),  # Просто римская цифра I-XXX
+                    # Глава I, Глава 1
+                    (r'[Гг]лава\s+([IVX0-9]+)', 'Глава'),
+                    # Часть I, Часть 1
+                    (r'[Чч]асть\s+([IVX0-9]+)', 'Часть'),
+                    # Песнь V, Песнь 5
+                    (r'[Пп]еснь\s+([IVX0-9]+)', 'Песнь'),
+                    # Строфа XXV
+                    (r'[Сс]трофа\s+([IVX0-9]+)', 'Строфа'),
+                    # Отдельная римская цифра (I, II, III, IV, V и т.д.)
+                    (r'^([IVX]{1,3})\s*$', '№'),
+                    # Отдельная арабская цифра
+                    (r'^([0-9]{1,2})\s*$', '№'),
                 ]
                 
                 for pattern, prefix in chapter_patterns:
                     match = re.search(pattern, line_clean)
                     if match:
-                        chapter_num = match.group(1)
-                        chapter = f"{prefix} {chapter_num}"
+                        num = match.group(1)
+                        chapter = f"{prefix} {num}"
                         break
                 
                 # Если уже нашли главу, прекращаем
@@ -325,15 +333,14 @@ class BookRAG:
                     break
         
         # Формируем красивую позицию
-        if chapter and position:
-            position = f"{chapter}, {position}"
-        elif chapter:
+        if chapter:
             position = chapter
         
         return {
             'book': book_name,
             'position': position if position else "фрагмент неизвестен",
-            'chapter': chapter
+            'chapter': chapter,
+            'part': part
         }
 
     def answer_question(self, question: str, k: int = 5) -> Dict:
@@ -420,7 +427,7 @@ class BookRAG:
 2. НЕ выдумывай факты, имена, события
 3. ИСПОЛЬЗУЙ только информацию из КОНТЕКСТА выше
 4. ЦИТИРУЙ книгу когда отвечаешь
-5. Кратко: 2-4 предложения
+5. Подробно: 3-4 предложения
 
 Пример правильного ответа:
 "Согласно тексту из книги [название], [факт из контекста]."""
@@ -535,23 +542,40 @@ def print_fragments(fragments: List[Dict]):
     
     for i, frag in enumerate(fragments, 1):
         print(f"\n{i}. 📖 {frag['source']}")
-        if frag.get('position') and frag['position'] != "фрагмент неизвестен":
+        
+        # Показываем главу если найдена
+        if frag.get('chapter'):
+            print(f"   📍 {frag['chapter']}")
+        elif frag.get('position') and frag['position'] != "фрагмент неизвестен":
             print(f"   📍 {frag['position']}")
+        
         print(f"   📊 Схожесть: {frag['similarity']:.1%}")
         print(f"   📝 {frag['content']}\n")
 
 
 def print_answer(result: Dict):
-    print_header("ОТВЕТ")
-    print(result['answer'])
+    print("\n" + "=" * 70)
+    print(" 💬 ОТВЕТ")
+    print("=" * 70)
     
+    # Печатаем ответ с отступами для читаемости
+    answer_lines = result['answer'].split('\n')
+    for line in answer_lines:
+        print(f"  {line}")
+    
+    # Цитаты отдельно
     if result.get('quotes'):
-        print("\n" + "-" * 70)
-        print("📑 Источники из книг:")
-        print("-" * 70)
+        print("\n" + "=" * 70)
+        print(" 📑 ИСТОЧНИКИ (цитаты из книг)")
+        print("=" * 70)
         for i, quote in enumerate(result['quotes'], 1):
-            print(f"\n{i}. 📖 {quote['source']}")
-            print(f"   «{quote['text']}»")
+            print(f"  [{i}] {quote['source']}")
+            # Форматируем цитату с отступом
+            quote_text = quote['text']
+            if len(quote_text) > 200:
+                quote_text = quote_text[:200] + "..."
+            print(f"      «{quote_text}»")
+        print("\n" + "=" * 70)
 
 
 def interactive_mode():
