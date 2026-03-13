@@ -543,11 +543,14 @@ def print_fragments(fragments: List[Dict]):
     for i, frag in enumerate(fragments, 1):
         print(f"\n{i}. 📖 {frag['source']}")
         
-        # Показываем главу если найдена
-        if frag.get('chapter'):
-            print(f"   📍 {frag['chapter']}")
+        # Показываем номер фрагмента + главу если найдена
+        frag_num = f"Фрагмент #{frag['chunk_id'] + 1}"
+        if frag.get('chapter') and frag['chapter'] != "фрагмент неизвестен":
+            print(f"   📍 {frag_num} | {frag['chapter']}")
         elif frag.get('position') and frag['position'] != "фрагмент неизвестен":
-            print(f"   📍 {frag['position']}")
+            print(f"   📍 {frag_num} | {frag['position']}")
+        else:
+            print(f"   📍 {frag_num}")
         
         print(f"   📊 Схожесть: {frag['similarity']:.1%}")
         print(f"   📝 {frag['content']}\n")

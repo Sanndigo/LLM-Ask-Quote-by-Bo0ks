@@ -1,8 +1,8 @@
 # 📚 RAG - Поиск по книгам с AI-ответами
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-v0.3.3-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
+[![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.3.4-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
 
 Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием RAG (Retrieval-Augmented Generation) и **YandexGPT API**.
 
@@ -257,7 +257,15 @@ pip install openai
 
 ## 📝 Лицензия
 
-MIT License - см. файл [LICENSE](LICENSE)
+**Non-Commercial License (CC BY-NC 4.0 Compatible)**
+
+- ✅ **Разрешено:** личное использование, образование, исследования
+- ❌ **Запрещено:** коммерческое использование, продажа, монетизация
+- 📋 **Требования:** указание автора (Sanndigo), сохранение лицензии
+
+Действует на территории: **Российская Федерация** и **США**
+
+См. полный текст в файле [LICENSE](LICENSE)
 
 ## 👥 Авторы
 

@@ -521,12 +521,20 @@
 
             let html = '';
             results.forEach((r, i) => {
+                // Формируем строку с информацией о позиции
+                let positionInfo = `Фрагмент #${i}`;
+                if (r.chapter && r.chapter !== 'фрагмент неизвестен') {
+                    positionInfo += ` | ${r.chapter}`;
+                } else if (r.position && r.position !== 'фрагмент неизвестен') {
+                    positionInfo += ` | ${r.position}`;
+                }
+                
                 html += `
                     <div class="result-item">
                         <div class="result-header">
                             <div>
                                 <div class="result-book">📖 ${r.book}</div>
-                                <div class="result-position">${r.position || r.chapter || ''}</div>
+                                <div class="result-position">${positionInfo}</div>
                             </div>
                             <div class="result-similarity">${r.similarity}% схожесть</div>
                         </div>
