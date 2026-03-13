@@ -85,7 +85,7 @@ def answer():
             return jsonify({'error': 'Введите вопрос'}), 400
         
         rag = get_rag()
-        result = rag.answer_question(question, k=k)
+        result = rag.answer(question, k=k)
         
         return jsonify({
             'success': True,
