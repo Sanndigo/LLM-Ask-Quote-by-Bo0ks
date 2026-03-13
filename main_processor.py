@@ -72,47 +72,58 @@ def process_txt_files(input_dir: str, output_dir: str, chunk_size: int = 512, ov
 def create_embeddings(input_dir: str, output_dir: str, model_name: str = 'all-MiniLM-L6-v2'):
     """
     Создание эмбеддингов из чанков
-    
+
     Args:
         input_dir: Входная директория с чанками
         output_dir: Выходная директория для сохранения эмбеддингов
         model_name: Название модели для создания эмбеддингов
     """
     logger.info(f"Создание эмбеддингов из {input_dir}")
-    
+
     # Создание процессора эмбеддингов
     embedding_processor = EmbeddingProcessor(model_name=model_name)
-    
-    # Сбор всех чанков
+
+    # Сбор всех чанков с путями к файлам
     all_chunks = []
-    file_mapping = []  # Сохраняем информацию о том, откуда взялся каждый чанк
-    
+    chunk_paths = []
+
+    # Функция для чтения файла с автоопределением кодировки
+    def read_file_auto_encoding(file_path):
+        encodings = ['utf-8', 'cp1251', 'latin-1']
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    return f.read().strip()
+            except UnicodeDecodeError:
+                continue
+        logger.warning(f"Не удалось прочитать файл {file_path}")
+        return None
+
     for root, dirs, files in os.walk(input_dir):
         for file in files:
             if file.endswith('.txt'):
                 file_path = os.path.join(root, file)
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    chunk_content = f.read().strip()
-                    if chunk_content:  # Только непустые чанки
-                        all_chunks.append(chunk_content)
-                        file_mapping.append((file_path, len(all_chunks) - 1))
-    
+                chunk_content = read_file_auto_encoding(file_path)
+                if chunk_content:  # Только непустые чанки
+                    all_chunks.append(chunk_content)
+                    chunk_paths.append(file_path)
+
     logger.info(f"Собрано {len(all_chunks)} чанков для создания эмбеддингов")
-    
+
     # Проверка наличия чанков
     if not all_chunks:
         logger.warning("Нет чанков для создания эмбеддингов")
         return
-    
+
     # Создание эмбеддингов
     embeddings, ids = embedding_processor.create_embeddings(all_chunks)
-    
+
     # Инициализация FAISS индекса
     embedding_processor.initialize_faiss_index(embeddings.shape[1])
-    
-    # Добавление эмбеддингов в индекс
-    embedding_processor.add_embeddings_to_index(embeddings, ids)
-    
+
+    # Добавление эмбеддингов в индекс с путями к чанкам
+    embedding_processor.add_embeddings_to_index(embeddings, ids, chunk_paths)
+
     # Сохранение индекса
     os.makedirs(output_dir, exist_ok=True)
     index_path = os.path.join(output_dir, 'faiss_index.bin')
@@ -125,9 +136,9 @@ def main():
     parser = argparse.ArgumentParser(description='Обработка TXT файлов для поиска с помощью Sentence Transformers и FAISS')
     parser.add_argument('--input-dir', '-i', default='data', help='Входная директория с TXT файлами')
     parser.add_argument('--output-dir', '-o', default='processed', help='Выходная директория')
-    parser.add_argument('--chunk-size', '-c', type=int, default=512, help='Размер чанка')
-    parser.add_argument('--overlap', '-v', type=int, default=50, help='Перекрытие между чанками')
-    parser.add_argument('--model', '-m', default='all-MiniLM-L6-v2', help='Модель для создания эмбеддингов')
+    parser.add_argument('--chunk-size', '-c', type=int, default=256, help='Размер чанка (в токенах)')
+    parser.add_argument('--overlap', '-v', type=int, default=64, help='Перекрытие между чанками (в токенах)')
+    parser.add_argument('--model', '-m', default='sentence-transformers/paraphrase-multilingual-mpnet-base-v2', help='Модель для создания эмбеддингов')
     parser.add_argument('--step', '-s', choices=['process', 'embed', 'all'], default='all', help='Этап выполнения')
     
     args = parser.parse_args()

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class TextProcessor:
     """Класс для обработки текстовых файлов и разбиения на логические чанки"""
     
-    def __init__(self, chunk_size: int = 512, overlap: int = 50):
+    def __init__(self, chunk_size: int = 256, overlap: int = 64):
         """
         Инициализация процессора текста
         
@@ -49,78 +49,109 @@ class TextProcessor:
     def read_txt_file(self, file_path: str) -> str:
         """
         Чтение содержимого TXT файла
-        
+
         Args:
             file_path: Путь к TXT файлу
-            
+
         Returns:
             Содержимое файла как строка
         """
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
-            logger.info(f"Успешно прочитан файл: {file_path}")
-            return content
-        except Exception as e:
-            logger.error(f"Ошибка при чтении файла {file_path}: {str(e)}")
-            raise
+        # Пробуем разные кодировки
+        encodings = ['utf-8', 'cp1251', 'latin-1']
+        
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as file:
+                    content = file.read()
+                logger.info(f"Успешно прочитан файл: {file_path} (кодировка: {encoding})")
+                return content
+            except UnicodeDecodeError:
+                continue
+        
+        # Если ни одна кодировка не подошла, выбрасываем ошибку
+        logger.error(f"Не удалось прочитать файл {file_path} ни в одной из кодировок")
+        raise ValueError(f"Не удалось прочитать файл {file_path}")
     
     def preprocess_text(self, text: str) -> str:
         """
         Предварительная обработка текста
-        
+
         Args:
             text: Входной текст
-            
+
         Returns:
             Обработанный текст
         """
-        # Удаление лишних пробелов
-        text = re.sub(r'\s+', ' ', text)
-        # Удаление специальных символов (оставляем только буквы, цифры и пробелы)
-        text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
+        # Удаляем шапку библиотеки Royallibru в начале
+        if 'royallibru' in text.lower()[:500]:
+            # Ищем конец шапки - обычно после "Приятного чтения" или имени автора
+            markers = ['Приятного чтения', 'notes Примечания', 'Роман в стихах', 'Повесть']
+            for marker in markers:
+                idx = text.find(marker)
+                if idx != -1:
+                    text = text[idx + len(marker):]
+                    break
+        
+        # Сохраняем переносы строк для последующего разбиения на абзацы
+        # Оставляем буквы (кириллицу и латиницу), цифры, пробелы и переносы строк
+        text = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s\n]', '', text)
+        # Удаляем лишние пробелы (но не переносы строк)
+        text = re.sub(r' +', ' ', text)
         return text.strip()
     
     def split_into_sentences(self, text: str) -> List[str]:
         """
-        Разбиение текста на предложения
-        
+        Разбиение текста на предложения/абзацы
+
         Args:
             text: Входной текст
-            
+
         Returns:
             Список предложений
         """
+        # Сначала пробуем разбить по абзацам (для русского языка работает лучше)
+        # Обрабатываем разные типы переносов строк
+        text_normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+        paragraphs = [p.strip() for p in text_normalized.split('\n\n') if p.strip() and len(p.strip()) > 50]
+        
+        if len(paragraphs) > 1:
+            return paragraphs
+        
+        # Если абзацев нет, разбиваем по предложениям NLTK
         sentences = sent_tokenize(text)
         return [sentence.strip() for sentence in sentences if sentence.strip()]
     
     def tokenize_text(self, text: str) -> List[str]:
         """
         Токенизация текста
-        
+
         Args:
             text: Входной текст
-            
+
         Returns:
             Список токенов
         """
         tokens = word_tokenize(text.lower())
-        # Удаление стоп-слов
-        stop_words = set(stopwords.words('english'))
+        # Удаление стоп-слов (английский и русский)
+        try:
+            stop_words = set(stopwords.words('russian'))
+            stop_words.update(stopwords.words('english'))
+        except Exception:
+            stop_words = set(stopwords.words('english'))
         tokens = [token for token in tokens if token not in stop_words]
-        # Лемматизация
-        tokens = [self.lemmatizer.lemmatize(token) for token in tokens]
+        # Лемматизация (только для английских слов)
+        tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token.isalpha()]
         return tokens
     
     def create_chunks(self, text: str, chunk_size: int = None, overlap: int = None) -> List[str]:
         """
         Создание логических чанков из текста
-        
+
         Args:
             text: Входной текст
             chunk_size: Размер чанка (по умолчанию используется self.chunk_size)
             overlap: Перекрытие между чанками (по умолчанию используется self.overlap)
-            
+
         Returns:
             Список чанков
         """
@@ -128,34 +159,36 @@ class TextProcessor:
             chunk_size = self.chunk_size
         if overlap is None:
             overlap = self.overlap
-            
-        # Разбиение на предложения
+
+        # Разбиение на абзацы/предложения
         sentences = self.split_into_sentences(text)
-        
-        # Преобразование предложений в токены для подсчета длины
-        sentence_tokens = [self.tokenize_text(sentence) for sentence in sentences]
-        
+
         chunks = []
         current_chunk = []
         current_length = 0
-        
-        for i, (sentence, tokens) in enumerate(zip(sentences, sentence_tokens)):
-            sentence_length = len(tokens)
+
+        for sentence in sentences:
+            # Считаем длину по символам (примерно 4 символа на слово)
+            sentence_length = len(sentence) // 4  # Примерное количество слов
             
             # Если текущий чанк превышает размер, сохраняем его и начинаем новый
             if current_length + sentence_length > chunk_size and current_chunk:
                 chunks.append(' '.join(current_chunk))
-                # Создаем перекрытие
-                current_chunk = current_chunk[-overlap:] if overlap > 0 else []
-                current_length = sum(len(self.tokenize_text(s)) for s in current_chunk)
-            
+                # Создаем перекрытие - берем последние N элементов
+                if overlap > 0 and len(current_chunk) > 1:
+                    overlap_count = min(overlap, len(current_chunk) - 1)
+                    current_chunk = current_chunk[-overlap_count:]
+                else:
+                    current_chunk = []
+                current_length = sum(len(s) // 4 for s in current_chunk)
+
             current_chunk.append(sentence)
             current_length += sentence_length
-        
+
         # Добавляем последний чанк
         if current_chunk:
             chunks.append(' '.join(current_chunk))
-            
+
         return chunks
     
     def process_file(self, file_path: str) -> List[str]:
