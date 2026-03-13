@@ -280,9 +280,10 @@ class BookRAG:
                 chunk_num = int(parts[1])
                 position = f"фрагмент #{chunk_num + 1}"
         
-        # Пытаемся найти название книги/главы в начале контента
+        # Пытаемся найти название книги/главы в контенте
         if content:
-            lines = content.split('\n')[:15]  # Первые 15 строк
+            # Берем первые 50 строк для поиска глав
+            lines = content.split('\n')[:50]
             
             # Определяем название книги по имени файла
             if 'EvgeniyOnegin' in book_name or 'evgeniy' in book_name.lower():
@@ -294,31 +295,30 @@ class BookRAG:
             elif 'sample' in book_name.lower():
                 book_name = "NLP Статья"
             
-            # Ищем главы, части, строфы в первых строках
+            # Ищем главы, части, строфы в тексте
             import re
             for line in lines:
                 line_clean = line.strip()
-                if len(line_clean) < 3 or len(line_clean) > 100:
+                if len(line_clean) < 2 or len(line_clean) > 100:
                     continue
                     
                 # Пропускаем URL и технические надписи
-                if 'http' in line_clean.lower() or 'royal' in line_clean.lower() or 'скачали' in line_clean.lower() or 'библиотек' in line_clean.lower():
+                skip_patterns = ['http', 'royal', 'скачали', 'библиотек', 'автора', 'книги', 'форматах']
+                if any(p in line_clean.lower() for p in skip_patterns):
                     continue
                 
                 # Паттерны для глав, частей, строф
                 chapter_patterns = [
+                    # Строфа XXV, Строфа V, Строфа I
+                    (r'[Сс]трофа\s+([IVX]+)', 'Строфа'),
                     # Глава I, Глава 1
                     (r'[Гг]лава\s+([IVX0-9]+)', 'Глава'),
                     # Часть I, Часть 1
                     (r'[Чч]асть\s+([IVX0-9]+)', 'Часть'),
                     # Песнь V, Песнь 5
                     (r'[Пп]еснь\s+([IVX0-9]+)', 'Песнь'),
-                    # Строфа XXV, Строфа V
-                    (r'[Сс]трофа\s+([IVX0-9]+)', 'Строфа'),
-                    # Отдельная римская цифра (I, II, III, IV, V и т.д.)
-                    (r'^([IVX]{1,3})\s*$', '№'),
-                    # Отдельная арабская цифра
-                    (r'^([0-9]{1,2})\s*$', '№'),
+                    # Отдельная римская цифра в начале строки (I, II, III, IV, V и т.д.)
+                    (r'^([IVX]{1,3})\s*$', 'Строфа'),
                 ]
                 
                 for pattern, prefix in chapter_patterns:
