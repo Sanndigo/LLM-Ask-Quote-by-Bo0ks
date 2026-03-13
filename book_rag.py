@@ -50,40 +50,21 @@ class BookRAG:
     def _load_llm_model(self):
         """Загрузка LLM модели"""
         try:
-            # Проверяем доступность GPU
-            if torch.cuda.is_available():
-                gpu_name = torch.cuda.get_device_name(0)
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                logger.info(f"🎮 Обнаружен GPU: {gpu_name} ({gpu_memory:.1f} GB)")
-                
-                # Выбираем модель в зависимости от памяти GPU
-                # GTX 1060 3GB = ~2.8GB доступно
-                if gpu_memory >= 10:
-                    self.llm_model_name = 'Qwen/Qwen2.5-3B-Instruct'
-                    logger.info("✅ Достаточно памяти для 3B модели")
-                elif gpu_memory >= 6:
-                    self.llm_model_name = 'Qwen/Qwen2.5-1.5B-Instruct'
-                    logger.info("✅ Загружаем 1.5B модель для GPU")
-                elif gpu_memory >= 3:
-                    self.llm_model_name = 'Qwen/Qwen2.5-0.5B-Instruct'
-                    logger.info("✅ Загружаем 0.5B модель для GPU (оптимально для 3GB)")
-                else:
-                    logger.warning(f"⚠️ Мало видеопамяти ({gpu_memory:.1f}GB), пробуем CPU")
-                    self.llm_model_name = 'Qwen/Qwen2.5-0.5B-Instruct'
-            else:
-                logger.info("GPU не обнаружен, используем CPU")
-            
             logger.info(f"Загрузка LLM {self.llm_model_name}...")
             self.tokenizer = AutoTokenizer.from_pretrained(self.llm_model_name, trust_remote_code=True)
             
             # Загрузка модели
-            if torch.cuda.is_available() and gpu_memory >= 3:
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                logger.info(f"🎮 GPU: {gpu_name} ({gpu_memory:.1f} GB)")
+                
                 self.llm_model = AutoModelForCausalLM.from_pretrained(
                     self.llm_model_name,
-                    torch_dtype=torch.float16,  # FP16 для GPU
+                    torch_dtype=torch.float16 if gpu_memory >= 4 else torch.float32,
                     low_cpu_mem_usage=True,
                     trust_remote_code=True,
-                    device_map="auto"  # Автоматически на GPU
+                    device_map="auto"
                 )
                 logger.info(f"✅ LLM загружена на GPU: {self.llm_model_name}")
             else:
@@ -98,21 +79,9 @@ class BookRAG:
             self.llm_model.eval()
             
         except Exception as e:
-            logger.warning(f"Не удалось загрузить {self.llm_model_name}: {e}")
-            # Fallback
-            try:
-                self.llm_model_name = 'Qwen/Qwen2.5-0.5B-Instruct'
-                self.tokenizer = AutoTokenizer.from_pretrained(self.llm_model_name, trust_remote_code=True)
-                self.llm_model = AutoModelForCausalLM.from_pretrained(
-                    self.llm_model_name,
-                    torch_dtype=torch.float32,
-                    low_cpu_mem_usage=True,
-                    trust_remote_code=True
-                )
-                self.llm_model.eval()
-                logger.info(f"✅ Загружена альтернативная модель: {self.llm_model_name}")
-            except Exception as e2:
-                logger.error(f"Не удалось загрузить LLM: {e2}")
+            logger.error(f"❌ Не удалось загрузить {self.llm_model_name}: {e}")
+            logger.error("Установите модель которая помещается в вашу память!")
+            raise
 
     def load_index(self):
         """Загрузка индекса"""
@@ -120,6 +89,79 @@ class BookRAG:
         self.embedding_processor.load_index(self.index_path, self.id_map_path)
         self.loaded = True
         logger.info("Индекс загружен")
+
+    def _get_book_content(self, book_name: str) -> str:
+        """
+        Загрузка полного текста книги по имени
+        
+        Args:
+            book_name: Имя книги (например 'EvgeniyOnegin')
+        
+        Returns:
+            Полный текст книги или пустая строка
+        """
+        # Сопоставление имени файла с книгой
+        book_files = {
+            'EvgeniyOnegin': 'Евгений Онегин',
+            'Shinell': 'Шинель',
+            'VlastelinKolec': 'Властелин Колец',
+            'sample': 'NLP Статья'
+        }
+        
+        # Ищем файлы в processed
+        processed_dir = 'processed'
+        if not os.path.exists(processed_dir):
+            return ""
+        
+        # Находим все чанки для этой книги
+        book_chunks = []
+        for root, dirs, files in os.walk(processed_dir):
+            for file in files:
+                if file.startswith(book_name) and file.endswith('.txt'):
+                    filepath = os.path.join(root, file)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read().strip()
+                            if content and not content.startswith('[Контент недоступен'):
+                                book_chunks.append((file, content))
+                    except Exception as e:
+                        logger.warning(f"Не удалось прочитать {filepath}: {e}")
+        
+        # Сортируем по номеру чанка
+        def get_chunk_num(filename):
+            try:
+                return int(filename.replace('.txt', '').split('_chunk_')[-1])
+            except:
+                return 999
+        
+        book_chunks.sort(key=lambda x: get_chunk_num(x[0]))
+        
+        # Объединяем тексты
+        full_text = "\n\n".join([chunk[1] for chunk in book_chunks])
+        return full_text[:15000]  # Ограничиваем 15K токенов
+
+    def _detect_book_from_fragments(self, fragments: List[Dict]) -> Optional[str]:
+        """
+        Определение основной книги по фрагментам
+        
+        Returns:
+            Имя книги или None
+        """
+        if not fragments:
+            return None
+        
+        # Считаем какая книга чаще встречается
+        book_counts = {}
+        for frag in fragments:
+            book = frag.get('source', 'Unknown')
+            book_counts[book] = book_counts.get(book, 0) + 1
+        
+        # Возвращаем самую частую
+        if book_counts:
+            main_book = max(book_counts, key=book_counts.get)
+            if book_counts[main_book] >= len(fragments) * 0.6:  # 60%+ фрагментов
+                return main_book
+        return None
 
     def search_fragments(self, query: str, k: int = 5) -> List[Dict]:
         """
@@ -241,14 +283,23 @@ class BookRAG:
         # Поиск релевантных фрагментов
         fragments = self.search_fragments(question, k)
         
-        if not fragments or fragments[0]['similarity'] < 0.3:
+        if not fragments or fragments[0]['similarity'] < 0.25:
             return {
                 'answer': "К сожалению, в загруженных текстах нет информации, которая могла бы ответить на ваш вопрос.",
                 'quotes': [],
                 'found': False
             }
-
-        # Формируем контекст
+        
+        # Определяем основную книгу
+        main_book = self._detect_book_from_fragments(fragments)
+        book_context = ""
+        
+        if main_book:
+            # Загружаем полный текст книги
+            book_context = self._get_book_content(main_book)
+            logger.info(f"📚 Загружен текст книги: {main_book} ({len(book_context)} символов)")
+        
+        # Формируем контекст из фрагментов
         context_parts = []
         quotes = []
         
@@ -262,17 +313,17 @@ class BookRAG:
                 'text': frag['content'],
                 'source': source_detail
             })
-
-        context_text = "\n\n".join(context_parts)
-
+        
+        fragments_context = "\n\n".join(context_parts)
+        
         # Если LLM не загружена - возвращаем только цитаты
         if self.llm_model is None or self.tokenizer is None:
             return {
-                'answer': f"Найденные фрагменты по вашему запросу:\n\n{context_text}",
+                'answer': f"Найденные фрагменты по вашему запросу:\n\n{fragments_context}",
                 'quotes': quotes,
                 'found': True
             }
-
+        
         # Генерация ответа через LLM
         system_prompt = """Ты — литературный эксперт. Отвечай ТОЛЬКО на основе предоставленного контекста.
 
@@ -286,8 +337,21 @@ class BookRAG:
 Пример правильного ответа:
 "Согласно тексту из книги [название], [факт из контекста]."""
 
-        user_prompt = f"""КОНТЕКСТ ИЗ КНИГ (используй ТОЛЬКО это):
-{context_text}
+        # Формируем промпт с полным текстом книги если есть
+        if book_context:
+            user_prompt = f"""КНИГА: {main_book}
+ПОЛНЫЙ ТЕКСТ (для контекста):
+{book_context[:10000]}
+
+НАЙДЕННЫЕ ФРАГМЕНТЫ (наиболее релевантные):
+{fragments_context}
+
+ВОПРОС: {question}
+
+ОТВЕТ (используй полный текст книги + фрагменты):"""
+        else:
+            user_prompt = f"""КОНТЕКСТ ИЗ КНИГ (используй ТОЛЬКО это):
+{fragments_context}
 
 ВОПРОС: {question}
 
