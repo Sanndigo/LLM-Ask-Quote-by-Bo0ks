@@ -26,53 +26,84 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class YandexGPTAPI:
-    """Клиент для YandexGPT API через OpenAI SDK"""
+class GigaChatAPI:
+    """Клиент для GigaChat API (Сбер) - БЕСПЛАТНО 1000 запросов/мес"""
     
-    def __init__(self, api_key: str = None, folder_id: str = None):
-        self.api_key = api_key or os.getenv('YANDEXGPT_API_KEY')
-        self.folder_id = folder_id or os.getenv('YANDEXGPT_FOLDER_ID')
-        self.model = f"gpt://{self.folder_id}/yandexgpt/latest"
+    def __init__(self, client_id: str = None, client_secret: str = None):
+        self.client_id = client_id or os.getenv('GIGACHAT_CLIENT_ID')
+        self.client_secret = client_secret or os.getenv('GIGACHAT_CLIENT_SECRET')
+        self.base_url = 'https://gigachat.devices.sberbank.ru/api/v2'
+        self.token = None
+        self.token_expires = 0
         self.client = None
         
         # Отладка
-        if self.api_key:
-            logger.info(f"✅ YandexGPT API Key: {self.api_key[:8]}...")
+        if self.client_id:
+            logger.info(f"✅ GigaChat Client ID: {self.client_id[:8]}...")
         else:
-            logger.error("❌ YandexGPT API Key не найден!")
+            logger.error("❌ GigaChat Client ID не найден!")
         
-        if self.folder_id:
-            logger.info(f"✅ YandexGPT Folder ID: {self.folder_id}")
-        else:
-            logger.error("❌ YandexGPT Folder ID не найден!")
-        
-        # Инициализация OpenAI клиента
+        # Инициализация OpenAI клиента для GigaChat
         try:
             import openai
             self.client = openai.OpenAI(
-                api_key=self.api_key,
-                base_url="https://ai.api.cloud.yandex.net/v1",
-                project=self.folder_id
+                api_key=self.client_secret,
+                base_url="https://gigachat.devices.sberbank.ru/api/v2"
             )
-            logger.info("✅ OpenAI клиент инициализирован для YandexGPT")
+            logger.info("✅ OpenAI клиент инициализирован для GigaChat")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации OpenAI клиента: {e}")
     
-    def generate(self, prompt: str, max_tokens: int = 1500, temperature: float = 0.7) -> str:
-        """Генерация ответа через YandexGPT"""
-        if not self.client or not self.api_key or not self.folder_id:
+    def _get_token(self) -> str:
+        """Получение токена доступа"""
+        import time
+        if self.token and time.time() < self.token_expires:
+            return self.token
+        
+        import requests
+        auth_url = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth'
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'RqUID': '00000000-0000-0000-0000-000000000000'
+        }
+        data = {
+            'scope': 'GIGACHAT_API_PERS',
+            'client_id': self.client_id,
+            'client_secret': self.client_secret
+        }
+        
+        try:
+            response = requests.post(auth_url, headers=headers, data=data, verify=False)
+            if response.status_code == 200:
+                token_data = response.json()
+                self.token = token_data['access_token']
+                self.token_expires = time.time() + token_data['expires_in'] - 60
+                logger.info("✅ Токен GigaChat получен")
+                return self.token
+            else:
+                logger.error(f"❌ GigaChat auth error: {response.text}")
+                return None
+        except Exception as e:
+            logger.error(f"❌ GigaChat auth exception: {e}")
+            return None
+    
+    def generate(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
+        """Генерация ответа через GigaChat"""
+        if not self.client or not self.client_id:
             return None
         
         try:
-            response = self.client.responses.create(
-                model=self.model,
-                temperature=temperature,
-                input=prompt,
-                max_output_tokens=max_tokens
+            response = self.client.chat.completions.create(
+                model="GigaChat",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature
             )
-            return response.output_text
+            return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"YandexGPT API error: {e}")
+            logger.error(f"GigaChat API error: {e}")
             return None
 
 
@@ -84,9 +115,9 @@ class BookRAG:
         index_path: str = 'embeddings/faiss_index.bin',
         id_map_path: str = 'embeddings/faiss_index.bin_id_map.pkl',
         model_name: str = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
-        llm_model_name: str = 'YANDEXGPT',  # 'YANDEXGPT' или 'Qwen/Qwen2.5-0.5B-Instruct'
-        yandexgpt_api_key: str = None,
-        yandexgpt_folder_id: str = None
+        llm_model_name: str = 'GIGACHAT',  # 'GIGACHAT' (бесплатно) или локальная модель
+        gigachat_client_id: str = None,
+        gigachat_client_secret: str = None
     ):
         self.index_path = index_path
         self.id_map_path = id_map_path
@@ -98,11 +129,11 @@ class BookRAG:
         self.tokenizer = None
         self.last_results = []
         
-        # YandexGPT API
-        self.yandexgpt = None
-        if llm_model_name == 'YANDEXGPT':
-            self.yandexgpt = YandexGPTAPI(yandexgpt_api_key, yandexgpt_folder_id)
-            logger.info("✅ YandexGPT API инициализирован")
+        # GigaChat API (БЕСПЛАТНО 1000 запросов/мес)
+        self.gigachat = None
+        if llm_model_name == 'GIGACHAT':
+            self.gigachat = GigaChatAPI(gigachat_client_id, gigachat_client_secret)
+            logger.info("✅ GigaChat API инициализирован (БЕСПЛАТНО!)")
         else:
             # Загрузка локальной модели
             self.embedder = SentenceTransformer(model_name)
@@ -405,8 +436,8 @@ class BookRAG:
         
         fragments_context = "\n\n".join(context_parts)
 
-        # Если YandexGPT - используем API
-        if self.yandexgpt:
+        # Если GigaChat - используем API (БЕСПЛАТНО!)
+        if self.gigachat:
             # Загружаем ВСЕ книги для полного контекста
             all_books = self._get_all_books_content()
             
@@ -431,7 +462,7 @@ class BookRAG:
 
 ОТВЕТ (очень развернутый, 8-12 предложений, упоминай главы/строфы и книги):"""
 
-            answer = self.yandexgpt.generate(prompt, max_tokens=2000, temperature=0.7)
+            answer = self.gigachat.generate(prompt, max_tokens=2000, temperature=0.7)
             if answer:
                 return {
                     'answer': answer,
@@ -440,7 +471,7 @@ class BookRAG:
                 }
             else:
                 return {
-                    'answer': "Ошибка при обращении к YandexGPT API. Проверьте ключи доступа.",
+                    'answer': "Ошибка при обращении к GigaChat API. Проверьте ключи доступа.",
                     'quotes': quotes,
                     'found': False
                 }

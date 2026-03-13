@@ -2,9 +2,10 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.3.4-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
+[![Version](https://img.shields.io/badge/version-v0.4.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
+[![GigaChat](https://img.shields.io/badge/AI-GigaChat-green.svg)](https://developers.sber.ru/)
 
-Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием RAG (Retrieval-Augmented Generation) и **YandexGPT API**.
+Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием RAG (Retrieval-Augmented Generation) и **GigaChat API (Сбер) — БЕСПЛАТНО!**
 
 ## ✨ Возможности
 
@@ -14,10 +15,11 @@
 - **Отображает главы, строфы, части** если найдены
 - Указывает книгу и процент схожести
 
-### ❓ Ответы на вопросы с YandexGPT
+### ❓ Ответы на вопросы с GigaChat
 - AI генерирует развернутые ответы на русском языке
-- **3000 запросов в месяц бесплатно**
+- **БЕСПЛАТНО 3000 запросов в месяц**
 - Работает через облако — не нужен мощный GPU
+- **Работает в РФ без VPN**
 - Показывает цитаты из книг для подтверждения
 
 ### 📖 Управление библиотекой
@@ -34,20 +36,21 @@
 pip install -r requirements.txt
 ```
 
-### 2. Настройка YandexGPT API
+### 2. Настройка GigaChat API (БЕСПЛАТНО!)
 
 **Получи ключи:**
-1. Зайди на https://cloud.yandex.ru/
-2. Создай сервисный аккаунт с ролью `ai.languageModels.user`
-3. Создай API-ключ
-4. Скопируй Folder ID
+1. Зайди на https://developers.sber.ru/
+2. Создай проект и подключи GigaChat
+3. Создай API ключи (Client ID + Client Secret)
 
 **Настрой .env:**
 ```bash
 # Создай файл .env в корне проекта
-echo YANDEXGPT_API_KEY=AQVN...твой_ключ > .env
-echo YANDEXGPT_FOLDER_ID=b1g...твой_id >> .env
+echo GIGACHAT_CLIENT_ID=твой_id > .env
+echo GIGACHAT_CLIENT_SECRET=твой_secret >> .env
 ```
+
+**Подробная инструкция:** См. [GIGACHAT_SETUP.md](GIGACHAT_SETUP.md)
 
 ### 3. Запуск веб-интерфейса
 
@@ -71,10 +74,11 @@ python book_rag.py --interactive
 | **Место** | 2 GB | 6 GB |
 | **GPU** | Не требуется | Любой (опционально) |
 
-### Для YandexGPT API:
+### Для GigaChat API:
 - Интернет соединение
-- API ключи Yandex Cloud
-- **Бесплатно:** 3000 запросов/мес
+- API ключи GigaChat (Сбер)
+- **Бесплатно:** 1000 запросов/мес
+- **Работает в РФ без VPN**
 
 ## 📁 Структура проекта
 
@@ -151,23 +155,26 @@ curl -X POST http://localhost:5000/api/answer \
   -d '{"question": "Кто написал Шинель?", "k": 5}'
 ```
 
-## 💰 Тарифы YandexGPT
+## 💰 Тарифы GigaChat
 
 | Тариф | Лимит | Цена |
 |-------|-------|------|
-| **Free** | 3000 запросов/мес | 0 ₽ |
-| **Pay-as-you-go** | По факту | ~0.5 ₽ за 1K токенов |
+| **Free** | 1000 запросов/мес | 0 ₽ |
+| **Standard** | 10 000 запросов/мес | ~500 ₽/мес |
+| **Enterprise** | Индивидуально | По договору |
 
-Для личного использования хватит бесплатного лимита!
+Для личного использования хватит **бесплатного лимита**!
+
+См. [GIGACHAT_SETUP.md](GIGACHAT_SETUP.md) для подробной информации.
 
 ## ⚙️ Настройка
 
 ### Переменные окружения (.env)
 
 ```bash
-# YandexGPT API
-YANDEXGPT_API_KEY=AQVN...твой_api_key
-YANDEXGPT_FOLDER_ID=b1g...твой_folder_id
+# GigaChat API (Сбер) - БЕСПЛАТНО
+GIGACHAT_CLIENT_ID=твой_client_id
+GIGACHAT_CLIENT_SECRET=твой_secret
 ```
 
 ### Параметры обработки книг
@@ -237,18 +244,18 @@ print(result['quotes'])
 
 ## 🐛 Решение проблем
 
-### "YandexGPT API error: 401"
-- Проверь API ключ в `.env`
-- Убедись что сервисный аккаунт активен
-- Проверь роль `ai.languageModels.user`
+### "GigaChat API error: 401"
+- Проверь API ключи в `.env`
+- Убедись что проект активен
+- Проверь что GigaChat подключен
 
-### "YandexGPT API error: 429"
-- Превышен лимит запросов (3000/мес)
+### "GigaChat API error: 429"
+- Превышен лимит запросов (1000/мес)
 - Подожди следующего месяца
 
 ### "ModuleNotFoundError: No module named 'openai'"
 ```bash
-pip install openai
+pip install openai requests
 ```
 
 ### Книги не индексируются
