@@ -136,8 +136,8 @@ def main():
     parser = argparse.ArgumentParser(description='Обработка TXT файлов для поиска с помощью Sentence Transformers и FAISS')
     parser.add_argument('--input-dir', '-i', default='data', help='Входная директория с TXT файлами')
     parser.add_argument('--output-dir', '-o', default='processed', help='Выходная директория')
-    parser.add_argument('--chunk-size', '-c', type=int, default=512, help='Размер чанка (в токенах)')
-    parser.add_argument('--overlap', '-v', type=int, default=128, help='Перекрытие между чанками (в токенах)')
+    parser.add_argument('--chunk-size', '-c', type=int, default=1024, help='Размер чанка (в токенах)')
+    parser.add_argument('--overlap', '-v', type=int, default=256, help='Перекрытие между чанками (в токенах)')
     parser.add_argument('--model', '-m', default='sentence-transformers/paraphrase-multilingual-mpnet-base-v2', help='Модель для создания эмбеддингов')
     parser.add_argument('--step', '-s', choices=['process', 'embed', 'all'], default='all', help='Этап выполнения')
     

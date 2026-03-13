@@ -115,21 +115,26 @@ class BookRAG:
         fragments = self.search(question, k)
         if not fragments:
             return {'answer': 'Ничего не найдено', 'quotes': [], 'found': False}
+
+        # Определяем основную книгу по фрагментам
+        book_counts = {}
+        for f in fragments:
+            book = f.get('source', 'Книга')
+            book_counts[book] = book_counts.get(book, 0) + 1
         
-        context = '\n\n'.join([f['full'][:500] for f in fragments[:3]])
-        
-        prompt = f"""Контекст из книг:
-{context}
+        book_name = max(book_counts, key=book_counts.get) if book_counts else 'Книга'
+
+        # Промпт только с названием книги
+        prompt = f"""Пользователь спрашивает о книге: "{book_name}"
 
 Вопрос: {question}
 
-Если из контекста нет данных так и скажи, не бери данные с других произведений, не приведенных тебе.
-Ведь тебе приводятся данные от специальной RAG системы ответа по книгам!
-Так же не используй форматирование текста по типу bold, italic. Оно не поддерживается!
+Дай развернутый ответ на русском языке, основываясь на содержании книги "{book_name}".
+Упоминай главы, строфы, части если они есть.
+Если не знаешь ответа — так и скажи.
+Не используй форматирование (bold, italic)."""
 
-Ответь подробно на русском, упоминай главы/строфы если есть:"""
-        
-        answer = self.mistral.generate(prompt)
+        answer = self.mistral.generate(prompt, max_tokens=1500)
         return {
             'answer': answer,
             'quotes': [{'text': f['content'], 'source': f['source'], 'similarity': f'{f["similarity"]:.0%}'} for f in fragments[:3]],
