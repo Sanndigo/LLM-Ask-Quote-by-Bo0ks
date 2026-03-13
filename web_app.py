@@ -49,14 +49,14 @@ def search():
             return jsonify({'error': 'Введите запрос'}), 400
         
         rag = get_rag()
-        fragments = rag.search_fragments(query, k=k)
-        
+        fragments = rag.search(query, k=k)
+
         # Форматируем результат
         results = []
         for frag in fragments:
             results.append({
-                'book': frag['source'],
-                'position': frag.get('position', ''),
+                'book': frag.get('source', 'Книга'),
+                'position': f"Фрагмент #{frag['id'] + 1}",
                 'chapter': frag.get('chapter', ''),
                 'similarity': round(frag['similarity'] * 100, 1),
                 'content': frag['content']

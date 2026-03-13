@@ -82,11 +82,32 @@ class BookRAG:
         for chunk_id, dist in results:
             content = self.embedding_processor.get_chunk_content(chunk_id)
             if content:
+                # Определяем источник
+                source = "Неизвестно"
+                chapter = ""
+                if chunk_id in self.embedding_processor.chunk_paths:
+                    path = self.embedding_processor.chunk_paths[chunk_id]
+                    filename = os.path.basename(path)
+                    # Извлекаем имя книги
+                    parts = filename.replace('.txt', '').split('_chunk_')
+                    if len(parts) == 2:
+                        book_name = parts[0]
+                        if 'EvgeniyOnegin' in book_name:
+                            source = "Евгений Онегин"
+                        elif 'Shinell' in book_name:
+                            source = "Шинель"
+                        elif 'VlastelinKolec' in book_name:
+                            source = "Властелин Колец"
+                        else:
+                            source = book_name
+                
                 fragments.append({
                     'id': chunk_id,
                     'similarity': 1.0 - dist,
                     'content': content[:400],
-                    'full': content
+                    'full': content,
+                    'source': source,
+                    'chapter': chapter
                 })
         return sorted(fragments, key=lambda x: x['similarity'], reverse=True)
     
