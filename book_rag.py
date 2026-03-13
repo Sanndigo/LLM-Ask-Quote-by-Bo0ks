@@ -5,7 +5,6 @@ RAG-система для работы с книгами
 
 Поддерживает:
 - Локальные LLM (Qwen, Phi-3, Gemma)
-- GigaChat API
 - YandexGPT API
 """
 import os
@@ -22,87 +21,66 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Настройка логирования
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 
-class GigaChatAPI:
-    """Клиент для GigaChat API"""
+class YandexGPTAPI:
+    """Клиент для YandexGPT API"""
     
-    def __init__(self, client_id: str = None, client_secret: str = None):
-        self.client_id = client_id or os.getenv('GIGACHAT_CLIENT_ID')
-        self.client_secret = client_secret or os.getenv('GIGACHAT_CLIENT_SECRET')
-        self.base_url = 'https://gigachat.devices.sberbank.ru/api/v2'
-        self.token = None
-        self.token_expires = 0
+    def __init__(self, api_key: str = None, folder_id: str = None):
+        self.api_key = api_key or os.getenv('YANDEXGPT_API_KEY')
+        self.folder_id = folder_id or os.getenv('YANDEXGPT_FOLDER_ID')
+        self.base_url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
         
-    def _get_token(self) -> str:
-        """Получение токена доступа"""
-        import time
-        if self.token and time.time() < self.token_expires:
-            return self.token
-            
-        auth_url = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth'
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'RqUID': '00000000-0000-0000-0000-000000000000'
-        }
-        data = {
-            'scope': 'GIGACHAT_API_PERS',
-            'client_id': self.client_id,
-            'client_secret': self.client_secret
-        }
+        # Отладка
+        if self.api_key:
+            logger.info(f"✅ YandexGPT API Key: {self.api_key[:8]}...")
+        else:
+            logger.error("❌ YandexGPT API Key не найден!")
         
-        try:
-            response = requests.post(auth_url, headers=headers, data=data, verify=False)
-            if response.status_code == 200:
-                token_data = response.json()
-                self.token = token_data['access_token']
-                self.token_expires = time.time() + token_data['expires_in'] - 60
-                return self.token
-            else:
-                logger.error(f"GigaChat auth error: {response.text}")
-                return None
-        except Exception as e:
-            logger.error(f"GigaChat auth error: {e}")
-            return None
+        if self.folder_id:
+            logger.info(f"✅ YandexGPT Folder ID: {self.folder_id}")
+        else:
+            logger.error("❌ YandexGPT Folder ID не найден!")
     
     def generate(self, prompt: str, max_tokens: int = 1000) -> str:
-        """Генерация ответа через GigaChat"""
-        if not self.client_id or not self.client_secret:
-            return None
-            
-        token = self._get_token()
-        if not token:
+        """Генерация ответа через YandexGPT"""
+        if not self.api_key or not self.folder_id:
             return None
         
-        url = f'{self.base_url}/chat/completions'
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {token}'
+            'Authorization': f'Apikey {self.api_key}',
+            'x-folder-id': self.folder_id
         }
         
         payload = {
-            'model': 'GigaChat',
+            'modelUri': f'gpt://{self.folder_id}/yandexgpt/latest',
+            'completionOptions': {
+                'stream': False,
+                'temperature': 0.5,
+                'maxTokens': max_tokens
+            },
             'messages': [
-                {'role': 'user', 'content': prompt}
-            ],
-            'max_tokens': max_tokens,
-            'temperature': 0.5
+                {'role': 'user', 'text': prompt}
+            ]
         }
         
         try:
-            response = requests.post(url, headers=headers, json=payload, verify=False)
+            response = requests.post(self.base_url, headers=headers, json=payload)
+            logger.debug(f"YandexGPT status: {response.status_code}")
+            
             if response.status_code == 200:
                 result = response.json()
-                return result['choices'][0]['message']['content']
+                return result['result']['alternatives'][0]['message']['text']
             else:
-                logger.error(f"GigaChat API error: {response.text}")
+                logger.error(f"YandexGPT API error {response.status_code}: {response.text}")
                 return None
         except Exception as e:
-            logger.error(f"GigaChat API error: {e}")
+            logger.error(f"YandexGPT API exception: {e}")
             return None
 
 
@@ -114,9 +92,9 @@ class BookRAG:
         index_path: str = 'embeddings/faiss_index.bin',
         id_map_path: str = 'embeddings/faiss_index.bin_id_map.pkl',
         model_name: str = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
-        llm_model_name: str = 'GIGACHAT',  # 'GIGACHAT' или 'Qwen/Qwen2.5-0.5B-Instruct'
-        gigachat_client_id: str = None,
-        gigachat_client_secret: str = None
+        llm_model_name: str = 'YANDEXGPT',  # 'YANDEXGPT' или 'Qwen/Qwen2.5-0.5B-Instruct'
+        yandexgpt_api_key: str = None,
+        yandexgpt_folder_id: str = None
     ):
         self.index_path = index_path
         self.id_map_path = id_map_path
@@ -128,11 +106,11 @@ class BookRAG:
         self.tokenizer = None
         self.last_results = []
         
-        # GigaChat API
-        self.gigachat = None
-        if llm_model_name == 'GIGACHAT':
-            self.gigachat = GigaChatAPI(gigachat_client_id, gigachat_client_secret)
-            logger.info("✅ GigaChat API инициализирован")
+        # YandexGPT API
+        self.yandexgpt = None
+        if llm_model_name == 'YANDEXGPT':
+            self.yandexgpt = YandexGPTAPI(yandexgpt_api_key, yandexgpt_folder_id)
+            logger.info("✅ YandexGPT API инициализирован")
         else:
             # Загрузка локальной модели
             self.embedder = SentenceTransformer(model_name)
@@ -318,8 +296,10 @@ class BookRAG:
                 book_name = "Евгений Онегин"
             elif 'Shinell' in book_name or 'shinell' in book_name.lower():
                 book_name = "Шинель"
+            elif 'VlastelinKolec' in book_name or 'vlastelin' in book_name.lower():
+                book_name = "Властелин Колец"
             elif 'sample' in book_name.lower():
-                book_name = "NLP Статья (англ.)"
+                book_name = "NLP Статья"
             
             # Ищем номер главы/части в первых строках
             import re
@@ -407,8 +387,8 @@ class BookRAG:
         
         fragments_context = "\n\n".join(context_parts)
 
-        # Если GigaChat - используем API
-        if self.gigachat:
+        # Если YandexGPT - используем API
+        if self.yandexgpt:
             prompt = f"""Ты — литературный эксперт. Отвечай ТОЛЬКО на основе контекста.
 
 КОНТЕКСТ ИЗ КНИГ:
@@ -418,7 +398,7 @@ class BookRAG:
 
 ОТВЕТ (2-4 предложения, по-русски):"""
             
-            answer = self.gigachat.generate(prompt, max_tokens=500)
+            answer = self.yandexgpt.generate(prompt, max_tokens=500)
             if answer:
                 return {
                     'answer': answer,
@@ -427,7 +407,7 @@ class BookRAG:
                 }
             else:
                 return {
-                    'answer': "Ошибка при обращении к GigaChat API. Проверьте ключи доступа.",
+                    'answer': "Ошибка при обращении к YandexGPT API. Проверьте ключи доступа.",
                     'quotes': quotes,
                     'found': False
                 }
@@ -439,7 +419,7 @@ class BookRAG:
                 'quotes': quotes,
                 'found': True
             }
-        
+
         # Генерация ответа через LLM
         system_prompt = """Ты — литературный эксперт. Отвечай ТОЛЬКО на основе предоставленного контекста.
 
@@ -481,7 +461,7 @@ class BookRAG:
         try:
             text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             inputs = self.tokenizer.encode(text, return_tensors='pt', truncation=True, max_length=1024)
-            
+
             with torch.no_grad():
                 outputs = self.llm_model.generate(
                     inputs,
@@ -541,7 +521,7 @@ class BookRAG:
         except Exception as e:
             logger.error(f"Ошибка генерации: {e}")
             return {
-                'answer': f"Ошибка при генерации ответа. Найденные фрагменты:\n\n{context_text}",
+                'answer': f"Ошибка при генерации ответа. Найденные фрагменты:\n\n{fragments_context}",
                 'quotes': quotes,
                 'found': True
             }
@@ -575,7 +555,7 @@ def print_answer(result: Dict):
     
     if result.get('quotes'):
         print("\n" + "-" * 70)
-        print("📑 ЦИТАТЫ (источники):")
+        print("📑 Источники из книг:")
         print("-" * 70)
         for i, quote in enumerate(result['quotes'], 1):
             print(f"\n{i}. 📖 {quote['source']}")
@@ -607,7 +587,7 @@ def interactive_mode():
                 print("1. Поиск фрагментов — находит отрывки текста по описанию")
                 print("   Пример: «где Татьяна пишет письмо»")
                 print("\n2. Ответ на вопрос — отвечает на вопрос с цитатами")
-                print("   Пример: «что писала Наташа Евгению Онегину»")
+                print("   Пример: «Что писала Татьяна Онегину»")
                 continue
             
             if choice == '1':
