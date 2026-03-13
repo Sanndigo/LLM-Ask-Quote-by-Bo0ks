@@ -2,6 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-v0.3.2-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
 
 Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием RAG (Retrieval-Augmented Generation).
 
@@ -16,12 +17,13 @@
 - AI генерирует развернутые ответы на основе контекста
 - Показывает цитаты из книг для подтверждения
 - **YandexGPT API** — отличные ответы на русском (3000 запросов/мес бесплатно)
-- **Локальные модели** — Qwen2.5, Phi-3, Gemma
+- **Локальные модели** — Qwen2.5, Phi-3, Gemma (работают без интернета)
 
 ### 📖 Управление библиотекой
 - Загрузка TXT файлов через веб-интерфейс
 - Drag & Drop для удобной загрузки
 - Автоматическая индексация новых книг
+- Поддержка русских и английских текстов
 
 ### 🎮 GPU поддержка
 - Автоматическое определение видеокарты
@@ -51,7 +53,18 @@
 pip install -r requirements.txt
 ```
 
-### 2. Запуск веб-интерфейса
+### 2. Настройка API (опционально)
+
+**YandexGPT** (рекомендуется):
+```bash
+# Создай файл .env
+echo YANDEXGPT_API_KEY=твой_key > .env
+echo YANDEXGPT_FOLDER_ID=твой_id >> .env
+```
+
+Получи ключи на https://cloud.yandex.ru/ (3000 запросов/мес бесплатно)
+
+### 3. Запуск веб-интерфейса
 
 ```bash
 python web_app.py
@@ -59,7 +72,7 @@ python web_app.py
 
 Откройте в браузере: **http://localhost:5000**
 
-### 3. Консольный режим (опционально)
+### 4. Консольный режим
 
 ```bash
 python book_rag.py --interactive
@@ -71,7 +84,7 @@ python book_rag.py --interactive
 |-----------|---------|---------------|
 | **RAM** | 4 GB | 8 GB |
 | **Место** | 2 GB | 6 GB |
-| **GPU** | Любой | NVIDIA 4GB+ |
+| **GPU** | Любой | NVIDIA 4GB+ (опционально) |
 
 ### Для GPU (NVIDIA):
 ```bash
@@ -80,6 +93,14 @@ pip install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
 См. [GPU_SETUP.md](GPU_SETUP.md) для подробной инструкции.
+
+### Для YandexGPT API:
+```bash
+pip install openai
+# Настрой .env с ключами Yandex Cloud
+```
+
+См. [YANDEXGPT_SETUP.md](YANDEXGPT_SETUP.md) для настройки.
 
 ## 📁 Структура проекта
 
@@ -152,9 +173,10 @@ python main_processor.py --chunk-size 256 --overlap 64
 
 | Модель | CPU | GPU (GTX 1060) | GPU (RTX 3060) |
 |--------|-----|----------------|----------------|
-| **0.5B** | 10-15 сек | **2-5 сек** ⚡ | 1-2 сек |
-| **1.5B** | 30-60 сек | 10-15 сек | **3-5 сек** ⚡ |
-| **3B** | 2-5 мин | 30-60 сек | **10-15 сек** ⚡ |
+| **YandexGPT API** | ⚡ 2-5 сек | ⚡ 2-5 сек | ⚡ 2-5 сек |
+| **Qwen2.5-0.5B** | 10-15 сек | **2-5 сек** ⚡ | 1-2 сек |
+| **Qwen2.5-1.5B** | 30-60 сек | 10-15 сек | **3-5 сек** ⚡ |
+| **Qwen2.5-3B** | 2-5 мин | 30-60 сек | **10-15 сек** ⚡ |
 
 ### Точность поиска
 
@@ -163,6 +185,12 @@ python main_processor.py --chunk-size 256 --overlap 64
 | Русские книги | 85-95% |
 | Английские книги | 90-98% |
 | Смешанные запросы | 80-90% |
+
+### Стоимость (для API)
+
+| Модель | Бесплатный лимит | Цена доп. запросов |
+|--------|------------------|-------------------|
+| **YandexGPT** | 3000/мес | ~0.5₽ за 1K токенов |
 
 ## 🔧 API Endpoints
 
@@ -222,6 +250,7 @@ print(result['quotes'])
 
 - [WEB_README.md](WEB_README.md) — Веб-интерфейс
 - [GPU_SETUP.md](GPU_SETUP.md) — Настройка GPU
+- [YANDEXGPT_SETUP.md](YANDEXGPT_SETUP.md) — Настройка YandexGPT API
 
 ## 🤝 Вклад
 
