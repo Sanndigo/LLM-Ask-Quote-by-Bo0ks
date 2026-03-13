@@ -5,7 +5,7 @@ RAG-система для работы с книгами
 
 Поддерживает:
 - Локальные LLM (Qwen, Phi-3, Gemma)
-- YandexGPT API (через OpenAI SDK)
+- GigaChat API (Сбер) - БЕСПЛАТНО 1000 запросов/мес
 """
 import os
 import sys
@@ -17,6 +17,14 @@ import logging
 from sentence_transformers import SentenceTransformer
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
+
+# Загружаем .env файл
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    logging.info("✅ .env загружен")
+except Exception as e:
+    logging.warning(f"⚠️ .env не загружен: {e}")
 
 # Настройка логирования
 logging.basicConfig(
