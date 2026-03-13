@@ -57,10 +57,11 @@ def search():
             results.append({
                 'book': frag['source'],
                 'position': frag.get('position', ''),
+                'chapter': frag.get('chapter', ''),
                 'similarity': round(frag['similarity'] * 100, 1),
                 'content': frag['content']
             })
-        
+
         return jsonify({
             'success': True,
             'query': query,

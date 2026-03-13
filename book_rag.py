@@ -58,7 +58,7 @@ class YandexGPTAPI:
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации OpenAI клиента: {e}")
     
-    def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.5) -> str:
+    def generate(self, prompt: str, max_tokens: int = 1500, temperature: float = 0.7) -> str:
         """Генерация ответа через YandexGPT"""
         if not self.client or not self.api_key or not self.folder_id:
             return None
@@ -388,16 +388,23 @@ class BookRAG:
 
         # Если YandexGPT - используем API
         if self.yandexgpt:
-            prompt = f"""Ты — литературный эксперт. Отвечай ТОЛЬКО на основе контекста.
+            prompt = f"""Ты — литературный эксперт. Отвечай на вопросы на основе контекста.
+
+Правила:
+1. Используй контекст из книг для ответа
+2. УКАЗЫВАЙ главы, строфы, части если они есть в контексте (например: "в Строфе XXV говорится...")
+3. Давай развернутые ответы (5-8 предложений)
+4. Будь естественным и дружелюбным
+5. Отвечай на русском языке
 
 КОНТЕКСТ ИЗ КНИГ:
 {book_context[:8000] if book_context else fragments_context}
 
 ВОПРОС: {question}
 
-ОТВЕТ (2-4 предложения, по-русски):"""
-            
-            answer = self.yandexgpt.generate(prompt, max_tokens=500)
+ОТВЕТ (развернутый, 5-8 предложений, упоминай главы/строфы):"""
+
+            answer = self.yandexgpt.generate(prompt, max_tokens=1500, temperature=0.7)
             if answer:
                 return {
                     'answer': answer,
