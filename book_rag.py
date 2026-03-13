@@ -197,9 +197,28 @@ class BookRAG:
         
         book_chunks.sort(key=lambda x: get_chunk_num(x[0]))
         
-        # Объединяем тексты
+        # Объединяем тексты - берем ВСЕ чанки без ограничения!
         full_text = "\n\n".join([chunk[1] for chunk in book_chunks])
-        return full_text[:15000]  # Ограничиваем 15K токенов
+        return full_text  # Возвращаем полный текст без обрезки
+
+    def _get_all_books_content(self) -> Dict[str, str]:
+        """
+        Загрузка текстов ВСЕХ книг
+        
+        Returns:
+            Словарь {название_книги: полный_текст}
+        """
+        all_books = {}
+        
+        # Список всех возможных книг
+        book_names = ['EvgeniyOnegin', 'Shinell', 'VlastelinKolec', 'sample']
+        
+        for book_name in book_names:
+            content = self._get_book_content(book_name)
+            if content:
+                all_books[book_name] = content
+        
+        return all_books
 
     def _detect_book_from_fragments(self, fragments: List[Dict]) -> Optional[str]:
         """
@@ -388,23 +407,31 @@ class BookRAG:
 
         # Если YandexGPT - используем API
         if self.yandexgpt:
-            prompt = f"""Ты — литературный эксперт. Отвечай на вопросы на основе контекста.
+            # Загружаем ВСЕ книги для полного контекста
+            all_books = self._get_all_books_content()
+            
+            # Формируем полный контекст из всех книг
+            full_context = "ПОЛНЫЕ ТЕКСТЫ ВСЕХ КНИГ:\n\n"
+            for book_name, content in all_books.items():
+                full_context += f"\n=== {book_name} ===\n{content[:20000]}\n\n"  # 20K на книгу
+            
+            prompt = f"""Ты — литературный эксперт с доступом ко ВСЕМ текстам книг. Отвечай на вопросы подробно.
 
 Правила:
-1. Используй контекст из книг для ответа
-2. УКАЗЫВАЙ главы, строфы, части если они есть в контексте (например: "в Строфе XXV говорится...")
-3. Давай развернутые ответы (5-8 предложений)
-4. Будь естественным и дружелюбным
-5. Отвечай на русском языке
+1. Используй ПОЛНЫЙ контекст всех книг
+2. УКАЗЫВАЙ главы, строфы, части если они есть (например: "в Строфе XXV говорится...")
+3. Давай ОЧЕНЬ развернутые ответы (8-12 предложений)
+4. Цитируй конкретные места из книг
+5. Будь естественным и дружелюбным
+6. Отвечай на русском языке
 
-КОНТЕКСТ ИЗ КНИГ:
-{book_context[:8000] if book_context else fragments_context}
+{full_context}
 
 ВОПРОС: {question}
 
-ОТВЕТ (развернутый, 5-8 предложений, упоминай главы/строфы):"""
+ОТВЕТ (очень развернутый, 8-12 предложений, упоминай главы/строфы и книги):"""
 
-            answer = self.yandexgpt.generate(prompt, max_tokens=1500, temperature=0.7)
+            answer = self.yandexgpt.generate(prompt, max_tokens=2000, temperature=0.7)
             if answer:
                 return {
                     'answer': answer,

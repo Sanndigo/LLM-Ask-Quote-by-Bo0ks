@@ -523,10 +523,13 @@
             results.forEach((r, i) => {
                 // Формируем строку с информацией о позиции и главе
                 let positionInfo = `Фрагмент #${i}`;
-                if (r.chapter && r.chapter !== 'фрагмент неизвестен' && r.chapter !== r.position) {
-                    positionInfo += ` | ${r.chapter}`;
-                } else if (r.position && r.position !== 'фрагмент неизвестен' && !r.position.includes('фрагмент #')) {
-                    positionInfo += ` | ${r.position}`;
+                
+                // Добавляем главу если есть
+                if (r.chapter && r.chapter !== 'фрагмент неизвестен' && r.chapter.length > 0) {
+                    // Проверяем что глава не дублирует позицию
+                    if (!r.position || !r.position.includes(r.chapter)) {
+                        positionInfo += ` | ${r.chapter}`;
+                    }
                 }
                 
                 html += `
