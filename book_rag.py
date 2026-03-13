@@ -128,7 +128,7 @@ class BookRAG:
         answer = self.mistral.generate(prompt)
         return {
             'answer': answer,
-            'quotes': [{'text': f['content'], 'similarity': f'{f["similarity"]:.0%}'} for f in fragments[:3]],
+            'quotes': [{'text': f['content'], 'source': f['source'], 'similarity': f'{f["similarity"]:.0%}'} for f in fragments[:3]],
             'found': True
         }
 
