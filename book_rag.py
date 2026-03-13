@@ -5,12 +5,11 @@ RAG-система для работы с книгами
 
 Поддерживает:
 - Локальные LLM (Qwen, Phi-3, Gemma)
-- YandexGPT API
+- YandexGPT API (через OpenAI SDK)
 """
 import os
 import sys
 import json
-import requests
 from typing import List, Dict, Optional
 from embedding_processor import EmbeddingProcessor
 from text_processor import TextProcessor
@@ -28,12 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 class YandexGPTAPI:
-    """Клиент для YandexGPT API"""
+    """Клиент для YandexGPT API через OpenAI SDK"""
     
     def __init__(self, api_key: str = None, folder_id: str = None):
         self.api_key = api_key or os.getenv('YANDEXGPT_API_KEY')
         self.folder_id = folder_id or os.getenv('YANDEXGPT_FOLDER_ID')
-        self.base_url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
+        self.model = f"gpt://{self.folder_id}/yandexgpt/latest"
+        self.client = None
         
         # Отладка
         if self.api_key:
@@ -45,42 +45,34 @@ class YandexGPTAPI:
             logger.info(f"✅ YandexGPT Folder ID: {self.folder_id}")
         else:
             logger.error("❌ YandexGPT Folder ID не найден!")
+        
+        # Инициализация OpenAI клиента
+        try:
+            import openai
+            self.client = openai.OpenAI(
+                api_key=self.api_key,
+                base_url="https://ai.api.cloud.yandex.net/v1",
+                project=self.folder_id
+            )
+            logger.info("✅ OpenAI клиент инициализирован для YandexGPT")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации OpenAI клиента: {e}")
     
-    def generate(self, prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.5) -> str:
         """Генерация ответа через YandexGPT"""
-        if not self.api_key or not self.folder_id:
+        if not self.client or not self.api_key or not self.folder_id:
             return None
         
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Apikey {self.api_key}',
-            'x-folder-id': self.folder_id
-        }
-        
-        payload = {
-            'modelUri': f'gpt://{self.folder_id}/yandexgpt/latest',
-            'completionOptions': {
-                'stream': False,
-                'temperature': 0.5,
-                'maxTokens': max_tokens
-            },
-            'messages': [
-                {'role': 'user', 'text': prompt}
-            ]
-        }
-        
         try:
-            response = requests.post(self.base_url, headers=headers, json=payload)
-            logger.debug(f"YandexGPT status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result['result']['alternatives'][0]['message']['text']
-            else:
-                logger.error(f"YandexGPT API error {response.status_code}: {response.text}")
-                return None
+            response = self.client.responses.create(
+                model=self.model,
+                temperature=temperature,
+                input=prompt,
+                max_output_tokens=max_tokens
+            )
+            return response.output_text
         except Exception as e:
-            logger.error(f"YandexGPT API exception: {e}")
+            logger.error(f"YandexGPT API error: {e}")
             return None
 
 
