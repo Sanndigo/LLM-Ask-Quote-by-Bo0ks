@@ -29,7 +29,7 @@ class BookRAG:
         index_path: str = 'embeddings/faiss_index.bin',
         id_map_path: str = 'embeddings/faiss_index.bin_id_map.pkl',
         model_name: str = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
-        llm_model_name: str = 'Qwen/Qwen2.5-3B-Instruct'  # Более умная модель!
+        llm_model_name: str = 'Gemma-2-2b-it' 
     ):
         self.index_path = index_path
         self.id_map_path = id_map_path
@@ -274,22 +274,24 @@ class BookRAG:
             }
 
         # Генерация ответа через LLM
-        system_prompt = """Ты — умный помощник с глубокими знаниями литературы.
-Отвечай на вопросы развернуто и полезно.
+        system_prompt = """Ты — литературный эксперт. Отвечай ТОЛЬКО на основе предоставленного контекста.
 
-Правила:
-1. Используй предоставленный контекст как справочный материал
-2. Но также применяй свои знания для полного ответа
-3. Давай развернутые ответы (3-5 предложений)
-4. Будь естественным и дружелюбным
-5. Отвечай на русском языке"""
+КРИТИЧЕСКИ ВАЖНО:
+1. ЕСЛИ в контексте НЕТ ответа — скажи "В загруженных книгах нет информации об этом"
+2. НЕ выдумывай факты, имена, события
+3. ИСПОЛЬЗУЙ только информацию из КОНТЕКСТА выше
+4. ЦИТИРУЙ книгу когда отвечаешь
+5. Кратко: 2-4 предложения
 
-        user_prompt = f"""Вот контекст из книг для справки:
+Пример правильного ответа:
+"Согласно тексту из книги [название], [факт из контекста]."""
+
+        user_prompt = f"""КОНТЕКСТ ИЗ КНИГ (используй ТОЛЬКО это):
 {context_text}
 
-Вопрос пользователя: {question}
+ВОПРОС: {question}
 
-Дай развернутый и полезный ответ:"""
+ОТВЕТ (только по контексту выше):"""
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -313,44 +315,42 @@ class BookRAG:
                 )
 
             response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            # Очищаем ответ — находим текст после последнего промпта
-            for marker in ["Дай развернутый и полезный ответ:", "Дай развернутый и полезный ответ:", "Ответ:"]:
+
+            # Очищаем ответ — берем текст после последнего маркера
+            for marker in ["ОТВЕТ (только по контексту выше):", "ОТВЕТ:", "Ответ:"]:
                 if marker in response:
                     response = response.split(marker)[-1].strip()
                     break
+
+            # Удаляем префиксы и мусор
+            lines = response.split('\n')
+            clean_lines = []
+            skip_words = ['assistant', 'user', 'system', 'КОНТЕКСТ', 'ВОПРОС', 'Правила', 'Пример']
             
-            # Удаляем явные артефакты промпта
-            if response.startswith("Вот контекст") or response.startswith("Контекст"):
-                # Находим где начинается настоящий ответ
-                idx = response.find("Вопрос")
-                if idx > 0:
-                    idx2 = response.find("Дай развернутый", idx)
-                    if idx2 > 0:
-                        response = response[idx2:].strip()
-                        # Снова удаляем маркер
-                        for marker in ["Дай развернутый и полезный ответ:", "Дай развернутый и полезный ответ:"]:
-                            if response.startswith(marker):
-                                response = response[len(marker):].strip()
-                                break
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if any(word in stripped for word in skip_words):
+                    continue
+                if stripped.startswith(('1.', '2.', '3.', '4.', '5.')) and 'КРИТИЧЕСКИ' in response[:200]:
+                    continue
+                clean_lines.append(line)
             
-            # Удаляем префиксы которые могут остаться
-            for prefix in ["assistant\n", "assistant "]:
-                if response.startswith(prefix):
-                    response = response[len(prefix):].strip()
+            response = '\n'.join(clean_lines).strip()
             
-            # Если ответ пустой — генерируем простой ответ на основе цитат
+            # Если ответ пустой или бред — показываем цитаты
             if not response or len(response) < 20:
                 if quotes and len(quotes) > 0:
-                    response = "На основе найденных фрагментов:\n\n"
-                    for i, q in enumerate(quotes[:2], 1):
-                        response += f"{i}. {q['source']}: {q['text'][:150]}...\n"
+                    response = "📖 Найденные фрагменты:\n\n"
+                    for i, q in enumerate(quotes[:3], 1):
+                        response += f"{i}. {q['source']}:\n   «{q['text'][:200]}...»\n\n"
                 else:
-                    response = "К сожалению, не удалось сгенерировать ответ на ваш вопрос."
+                    response = "❌ К сожалению, не удалось найти информацию."
             
-            # Ограничиваем максимальную длину
-            if len(response) > 1500:
-                response = response[:1500] + "..."
+            # Ограничиваем длину
+            if len(response) > 1000:
+                response = response[:1000] + "..."
 
             return {
                 'answer': response,
