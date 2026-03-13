@@ -25,23 +25,25 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 
-class QwenAPI:
-    """Qwen API через OpenRouter"""
+class MistralAPI:
+    """Mistral AI API - бесплатно 30 дней trial
+    https://console.mistral.ai/
+    """
     
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv('OPENROUTER_API_KEY')
-        self.url = 'https://openrouter.ai/api/v1/chat/completions'
-        self.model = 'qwen/qwen-2.5-7b-instruct'
+        self.api_key = api_key or os.getenv('MISTRAL_API_KEY')
+        self.url = 'https://api.mistral.ai/v1/chat/completions'
+        self.model = 'mistral-small-latest'  # Бесплатная модель
         
         if self.api_key:
-            logger.info(f"✅ Qwen API: {self.api_key[:8]}...")
+            logger.info(f"✅ Mistral API: {self.api_key[:8]}...")
         else:
-            logger.error("❌ OPENROUTER_API_KEY не найден!")
-            logger.info("   Получи на https://openrouter.ai/keys")
+            logger.error("❌ MISTRAL_API_KEY не найден!")
+            logger.info("   Получи на https://console.mistral.ai/api-keys")
     
     def generate(self, prompt: str, max_tokens: int = 1500) -> str:
         if not self.api_key:
-            return "Нет API ключа. Получи на https://openrouter.ai/keys"
+            return "Нет API ключа. Получи на https://console.mistral.ai/"
         
         import requests
         headers = {
@@ -59,7 +61,7 @@ class QwenAPI:
             if r.status_code == 200:
                 return r.json()['choices'][0]['message']['content']
             else:
-                return f"Ошибка API: {r.status_code}"
+                return f"Ошибка Mistral API: {r.status_code} - {r.text[:100]}"
         except Exception as e:
             return f"Ошибка: {e}"
 
@@ -71,7 +73,7 @@ class BookRAG:
                  api_key=None):
         self.embedding_processor = EmbeddingProcessor(model_name)
         self.embedding_processor.load_index(index_path, id_map_path)
-        self.qwen = QwenAPI(api_key)
+        self.mistral = MistralAPI(api_key)
         logger.info("✅ RAG система готова")
     
     def search(self, query: str, k=5) -> List[Dict]:
@@ -102,7 +104,7 @@ class BookRAG:
 
 Ответь подробно на русском, упоминай главы/строфы если есть:"""
         
-        answer = self.qwen.generate(prompt)
+        answer = self.mistral.generate(prompt)
         return {
             'answer': answer,
             'quotes': [{'text': f['content'], 'similarity': f'{f["similarity"]:.0%}'} for f in fragments[:3]],
