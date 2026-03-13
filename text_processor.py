@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class TextProcessor:
     """Класс для обработки текстовых файлов и разбиения на логические чанки"""
     
-    def __init__(self, chunk_size: int = 256, overlap: int = 64):
+    def __init__(self, chunk_size: int = 512, overlap: int = 128):
         """
         Инициализация процессора текста
         
