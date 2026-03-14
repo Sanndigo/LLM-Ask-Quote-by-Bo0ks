@@ -2,7 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.4.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
+[![Version](https://img.shields.io/badge/version-v1.1.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
 
 Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием RAG (Retrieval-Augmented Generation) и **API by Mistral AI!**
 
