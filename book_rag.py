@@ -103,7 +103,7 @@ class BookRAG:
                 
                 fragments.append({
                     'id': int(chunk_id),  # Гарантируем число!
-                    'similarity': max(0, min(100, (1.0 - dist) * 100)),  # Инвертируем и ограничиваем 0-100%
+                    'similarity': dist,
                     'content': content[:400],
                     'full': content,
                     'source': source,
