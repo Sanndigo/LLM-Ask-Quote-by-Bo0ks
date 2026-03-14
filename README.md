@@ -92,6 +92,10 @@ python web_app.py
 python book_rag.py
 ```
 
+## 📶 Запуск в Google Collab
+-Перейдите по ссылке и следуйте инструкциям:
+https://colab.research.google.com/drive/1UDzgvs7KDb4Ynz0drd8B1p1KYN9Ha7Dt?usp=sharing
+
 ## 📋 Требования
 
 | Компонент | Минимум | Рекомендуется |
