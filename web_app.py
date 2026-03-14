@@ -5,6 +5,7 @@ Web-интерфейс для RAG-системы
 import os
 import json
 import threading
+from typing import Dict, List
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -55,6 +56,7 @@ def search():
         results = []
         for frag in fragments:
             results.append({
+                'id': int(frag['id']),  # Добавляем ID!
                 'book': frag.get('source', 'Книга'),
                 'position': f"Фрагмент #{frag['id'] + 1}",
                 'chapter': frag.get('chapter', ''),
@@ -97,6 +99,87 @@ def answer():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chunk/<int:chunk_id>', methods=['GET'])
+def get_chunk_neighbors(chunk_id: int):
+    """Получение чанка с соседями (по 2 с каждой стороны)"""
+    try:
+        rag = get_rag()
+        
+        # Получаем все чанки из embedding processor
+        chunk_paths = rag.embedding_processor.chunk_paths
+        
+        # Находим текущий чанк
+        if chunk_id not in chunk_paths:
+            return jsonify({'error': 'Чанк не найден'}), 404
+        
+        # Сортируем ID чанков
+        sorted_ids = sorted(chunk_paths.keys())
+        current_idx = sorted_ids.index(chunk_id)
+        
+        # Получаем соседей (по 2 с каждой стороны)
+        prev_chunks = []
+        next_chunks = []
+        
+        # 2 предыдущих
+        for i in range(max(0, current_idx - 2), current_idx):
+            prev_chunks.append(_get_chunk_data(sorted_ids[i], rag))
+        
+        # 2 следующих
+        for i in range(current_idx + 1, min(len(sorted_ids), current_idx + 3)):
+            next_chunks.append(_get_chunk_data(sorted_ids[i], rag))
+        
+        # Текущий
+        current = _get_chunk_data(chunk_id, rag)
+        
+        response = {
+            'current': current,
+            'previous': prev_chunks,
+            'next': next_chunks
+        }
+        
+        # Отладка
+        import json
+        print(f"Chunk {chunk_id} response:", json.dumps(response, ensure_ascii=False)[:200])
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_chunk_neighbors: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+def _get_chunk_data(chunk_id: int, rag) -> Dict:
+    """Получение данных о чанке"""
+    try:
+        content = rag.embedding_processor.get_chunk_content(chunk_id)
+        path = rag.embedding_processor.chunk_paths.get(chunk_id, '')
+        
+        # Извлекаем имя книги из пути
+        book_name = 'Книга'
+        if path:
+            parts = path.replace('\\', '/').split('/')
+            for part in parts:
+                if '_chunk_' not in part and part.endswith('.txt'):
+                    book_name = part.replace('.txt', '')
+                    break
+        
+        return {
+            'id': chunk_id,
+            'content': content[:500] + ('...' if len(content) > 500 else ''),
+            'full_content': content if content else 'Контент недоступен',
+            'book': book_name
+        }
+    except Exception as e:
+        print(f"Error in _get_chunk_data for chunk {chunk_id}: {e}")
+        return {
+            'id': chunk_id,
+            'content': 'Ошибка загрузки',
+            'full_content': 'Ошибка загрузки чанка',
+            'book': 'Ошибка'
+        }
 
 
 @app.route('/api/books', methods=['GET'])

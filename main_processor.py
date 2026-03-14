@@ -39,8 +39,8 @@ def process_txt_files(input_dir: str, output_dir: str, semantic_threshold: float
     # Создание процессора
     semantic_processor = SemanticTextProcessor(
         similarity_threshold=semantic_threshold,
-        min_chunk_size=3,
-        max_chunk_size=15
+        min_sentences=2,
+        max_sentences=10
     )
 
     # Создание директории для сохранения чанков

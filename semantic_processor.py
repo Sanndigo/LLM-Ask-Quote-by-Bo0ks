@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Семантический чанкинг текста на основе эмбеддингов
-Разбивает текст по смысловым границам, а не по количеству токенов
+Семантический чанкинг текста
+Разбивает текст ТОЛЬКО по предложениям (от точки до точки)
+Группирует предложения по семантической схожести
 """
 import os
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import logging
@@ -18,31 +19,24 @@ class SemanticTextProcessor:
     """
     Процессор для семантического чанкинга
     
-    Принцип работы:
-    1. Разбиваем текст на предложения
+    Правила:
+    1. Разбиваем текст ТОЛЬКО по предложениям (от точки до точки)
     2. Считаем эмбеддинги для каждого предложения
-    3. Находим границы где схожесть между предложениями резко падает
-    4. Объединяем предложения в чанки по смыслу
+    3. Объединяем предложения в чанки по схожести
+    4. НИКОГДА не обрываем слова или предложения
     """
     
     def __init__(
         self,
         model_name: str = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
-        similarity_threshold: float = 0.45,  # Порог схожести (0-1)
-        min_chunk_size: int = 3,  # Мин кол-во предложений в чанке
-        max_chunk_size: int = 15,  # Макс кол-во предложений в чанке
+        similarity_threshold: float = 0.45,  # Порог схожести
+        min_sentences: int = 2,  # Минимум предложений в чанке
+        max_sentences: int = 10,  # Максимум предложений в чанке
     ):
-        """
-        Args:
-            model_name: Модель для эмбеддингов
-            similarity_threshold: Порог схожести (ниже - новая тема)
-            min_chunk_size: Минимум предложений в чанке
-            max_chunk_size: Максимум предложений в чанке
-        """
         self.model_name = model_name
         self.similarity_threshold = similarity_threshold
-        self.min_chunk_size = min_chunk_size
-        self.max_chunk_size = max_chunk_size
+        self.min_sentences = min_sentences
+        self.max_sentences = max_sentences
         
         logger.info(f"Загрузка модели: {model_name}")
         self.embedder = SentenceTransformer(model_name)
@@ -51,112 +45,106 @@ class SemanticTextProcessor:
     def split_into_sentences(self, text: str) -> List[str]:
         """
         Разбиение текста на предложения
-        
-        Учитывает:
-        - Точки, восклицательные, вопросительные знаки
-        - Переносы строк
-        - Особые случаи (г-н, и т.д.)
+        ТОЛЬКО по точкам, восклицательным и вопросительным знакам
         """
-        # Очищаем текст
-        text = re.sub(r'\s+', ' ', text)
+        # Очищаем от лишних пробелов
+        text = re.sub(r'\s+', ' ', text).strip()
         
         # Разбиваем по предложениям
-        sentences = re.split(
-            r'(?<=[.!?])\s+(?=[А-ЯA-Z])',
-            text
-        )
+        # Используем regex для сохранения разделителей
+        parts = re.split(r'([.!?]+\s*)', text)
         
-        # Фильтруем пустые и слишком короткие
-        sentences = [
-            s.strip() for s in sentences
-            if s.strip() and len(s.strip()) > 10
-        ]
+        sentences = []
+        current = ''
         
+        for part in parts:
+            current += part
+            # Если это разделитель (. ! ?) - завершаем предложение
+            if re.match(r'^[.!?]+\s*$', part):
+                sentence = current.strip()
+                if len(sentence) > 10:  # Минимальная длина
+                    sentences.append(sentence)
+                current = ''
+        
+        # Добавляем последнее если есть
+        if current.strip() and len(current.strip()) > 10:
+            sentences.append(current.strip())
+        
+        logger.debug(f"Разбито на {len(sentences)} предложений")
         return sentences
-    
-    def compute_similarities(self, embeddings: np.ndarray) -> List[float]:
-        """
-        Вычисление схожести между соседними предложениями
-        
-        Returns:
-            Список схожестей между i и i+1 предложением
-        """
-        similarities = []
-        for i in range(len(embeddings) - 1):
-            sim = self._cosine_similarity(embeddings[i], embeddings[i + 1])
-            similarities.append(sim)
-        return similarities
-    
-    def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
-        """Косинусная схожесть двух векторов"""
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
     
     def create_semantic_chunks(self, text: str) -> List[str]:
         """
         Создание семантических чанков
         
         Алгоритм:
-        1. Разбиваем на предложения
-        2. Считаем эмбеддинги
-        3. Находим границы по схожести
-        4. Формируем чанки
+        1. Разбиваем на предложения (от точки до точки)
+        2. Считаем эмбеддинги для каждого
+        3. Находим где схожесть падает ниже порога
+        4. Объединяем в чанки
         """
         # 1. Разбиваем на предложения
         sentences = self.split_into_sentences(text)
         
-        if len(sentences) < 2:
-            return [text] if text else []
+        if len(sentences) == 0:
+            return []
         
-        logger.debug(f"Разбито на {len(sentences)} предложений")
+        if len(sentences) == 1:
+            return sentences
+        
+        logger.debug(f"Обработка {len(sentences)} предложений")
         
         # 2. Считаем эмбеддинги
         embeddings = self.embedder.encode(sentences, convert_to_numpy=True)
         
-        # 3. Вычисляем схожести
-        similarities = self.compute_similarities(embeddings)
+        # 3. Вычисляем схожесть между соседними
+        similarities = []
+        for i in range(len(embeddings) - 1):
+            sim = self._cosine_similarity(embeddings[i], embeddings[i + 1])
+            similarities.append(sim)
         
         # 4. Находим границы чанков
-        chunk_boundaries = self._find_boundaries(similarities)
+        boundaries = self._find_boundaries(similarities)
         
-        # 5. Формируем чанки
-        chunks = self._build_chunks(sentences, chunk_boundaries)
+        # 5. Формируем чанки (ТОЛЬКО целые предложения!)
+        chunks = self._build_chunks(sentences, boundaries)
         
         logger.info(f"Создано {len(chunks)} семантических чанков")
         return chunks
     
+    def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+        """Косинусная схожесть"""
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    
     def _find_boundaries(self, similarities: List[float]) -> List[int]:
         """
-        Поиск границ чанков на основе схожести
+        Поиск границ чанков
         
         Граница ставится где:
-        - Схожесть ниже порога
-        - ИЛИ достигнут max_chunk_size
+        - Схожесть ниже порога И достигнут min_sentences
+        - ИЛИ достигнут max_sentences
         """
         boundaries = []
-        current_chunk_size = 1
+        current_size = 1
         
         for i, sim in enumerate(similarities):
-            # Проверка по схожести
-            if sim < self.similarity_threshold:
-                if current_chunk_size >= self.min_chunk_size:
-                    boundaries.append(i + 1)
-                    current_chunk_size = 0
-            
-            # Проверка по размеру
-            current_chunk_size += 1
-            if current_chunk_size >= self.max_chunk_size:
+            # Проверка: достигнут максимум
+            if current_size >= self.max_sentences:
                 boundaries.append(i + 1)
-                current_chunk_size = 0
+                current_size = 0
+            # Проверка: схожесть упала И достигнут минимум
+            elif sim < self.similarity_threshold and current_size >= self.min_sentences:
+                boundaries.append(i + 1)
+                current_size = 0
+            
+            current_size += 1
         
         return boundaries
     
-    def _build_chunks(
-        self,
-        sentences: List[str],
-        boundaries: List[int]
-    ) -> List[str]:
+    def _build_chunks(self, sentences: List[str], boundaries: List[int]) -> List[str]:
         """
-        Построение чанков из предложений по границам
+        Построение чанков из предложений
+        ВАЖНО: Никогда не обрезаем предложения!
         """
         chunks = []
         start = 0
@@ -164,6 +152,7 @@ class SemanticTextProcessor:
         for boundary in boundaries:
             chunk_sentences = sentences[start:boundary]
             if chunk_sentences:
+                # Объединяем предложения в чанк
                 chunk = ' '.join(chunk_sentences)
                 chunks.append(chunk)
             start = boundary
@@ -176,9 +165,7 @@ class SemanticTextProcessor:
         return chunks
     
     def process_file(self, file_path: str) -> List[str]:
-        """
-        Обработка файла и создание семантических чанков
-        """
+        """Обработка файла"""
         logger.info(f"Обработка файла: {file_path}")
         
         # Чтение файла
@@ -191,26 +178,21 @@ class SemanticTextProcessor:
                     content = f.read()
                 logger.info(f"✅ Прочитано (кодировка: {encoding})")
                 break
-            except Exception as e:
+            except:
                 continue
         
         if not content:
             logger.error(f"❌ Не удалось прочитать файл")
             return []
         
-        # Создание чанков
+        # Создаем чанки
         chunks = self.create_semantic_chunks(content)
         
         logger.info(f"✅ Создано {len(chunks)} чанков")
         return chunks
     
     def process_directory(self, directory_path: str) -> Dict[str, List[str]]:
-        """
-        Обработка всех TXT файлов в директории
-        
-        Returns:
-            Словарь {filename: [chunks]}
-        """
+        """Обработка директории"""
         results = {}
         
         for filename in os.listdir(directory_path):
@@ -226,22 +208,23 @@ if __name__ == '__main__':
     # Тест
     processor = SemanticTextProcessor(
         similarity_threshold=0.45,
-        min_chunk_size=3,
-        max_chunk_size=15
+        min_sentences=2,
+        max_sentences=10
     )
     
-    # Пример
     test_text = """
-    Евгений Онегин - роман в стихах Александра Сергеевича Пушкина.
-    Это произведение считается одним из величайших произведений русской литературы.
+    Евгений Онегин - роман в стихах. Это великое произведение.
+    Пушкин написал его в 19 веке. Роман считается шедевром.
     
-    Главный герой - Евгений Онегин, молодой дворянин.
-    Он получает типичное для дворянства образование.
-    Ведет светскую жизнь в Петербурге.
+    Главный герой - Евгений Онегин. Он молодой дворянин.
+    Онегин живет в Петербурге. Он ведет светскую жизнь.
     """
     
     chunks = processor.create_semantic_chunks(test_text)
     print(f"\nСоздано чанков: {len(chunks)}")
     for i, chunk in enumerate(chunks, 1):
-        print(f"\n--- Чанк {i} ---")
-        print(chunk[:200])
+        print(f"\n--- Чанк {i} ({len(chunk)} символов) ---")
+        print(chunk)
+        # Проверка что заканчивается на точку
+        if chunk and not chunk.strip().endswith(('.', '!', '?', '...')):
+            print("⚠️ WARNING: Чанк не заканчивается на точку!")

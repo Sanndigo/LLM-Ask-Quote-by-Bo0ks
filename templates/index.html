@@ -220,6 +220,127 @@
             white-space: pre-wrap;
         }
 
+        .click-hint {
+            color: var(--primary);
+            font-size: 0.85rem;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        /* Модальное окно для чанков */
+        .chunk-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            border-bottom: 2px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            border-radius: 16px 16px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--primary);
+        }
+
+        .close-btn {
+            background: var(--bg-input);
+            border: none;
+            color: var(--text);
+            font-size: 2rem;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: var(--primary);
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .current-chunk {
+            background: linear-gradient(135deg, var(--bg-input), var(--bg-card));
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            border: 2px solid var(--primary);
+        }
+
+        .current-chunk h4 {
+            margin: 0 0 15px 0;
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+
+        .neighbor-chunks {
+            margin: 20px 0;
+            padding: 20px;
+            background: var(--bg-input);
+            border-radius: 12px;
+        }
+
+        .neighbor-chunks h4 {
+            margin: 0 0 15px 0;
+            color: var(--secondary);
+            font-size: 1.1rem;
+        }
+
+        .neighbor-chunk {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 3px solid var(--secondary);
+        }
+
+        .neighbor-chunk:last-child {
+            margin-bottom: 0;
+        }
+
+        .chunk-book {
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .chunk-text {
+            color: var(--text);
+            line-height: 1.8;
+            white-space: pre-wrap;
+            font-size: 0.95rem;
+        }
+
         /* Answer */
         .answer-box {
             background: linear-gradient(135deg, var(--bg-input), var(--bg-card));
@@ -533,7 +654,7 @@
                 }
                 
                 html += `
-                    <div class="result-item">
+                    <div class="result-item" data-chunk-id="${r.id}" data-result-index="${i}" style="cursor: pointer;" onclick="handleResultClick(this)">
                         <div class="result-header">
                             <div>
                                 <div class="result-book">📖 ${r.book}</div>
@@ -542,11 +663,107 @@
                             <div class="result-similarity">${r.similarity}% схожесть</div>
                         </div>
                         <div class="result-content">${r.content}</div>
+                        <div class="click-hint">🔍 Нажмите для просмотра контекста</div>
                     </div>
                 `;
             });
             container.innerHTML = html;
         }
+
+        // Popup для чанка
+        function handleResultClick(element) {
+            // Получаем chunkId из атрибута
+            let chunkId = element.getAttribute('data-chunk-id');
+            console.log('Chunk ID from attribute:', chunkId);
+            
+            // Преобразуем в число
+            chunkId = parseInt(chunkId, 10);
+            console.log('Chunk ID as number:', chunkId);
+            
+            if (isNaN(chunkId)) {
+                console.error('Invalid chunkId!');
+                alert('Ошибка: неверный ID чанка');
+                return;
+            }
+            
+            showChunkPopup(chunkId);
+        }
+        
+        async function showChunkPopup(chunkId) {
+            try {
+                const response = await fetch(`/api/chunk/${chunkId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                    return;
+                }
+                
+                displayChunkPopup(data);
+            } catch (error) {
+                alert('Ошибка загрузки: ' + error.message);
+            }
+        }
+        
+        function displayChunkPopup(data) {
+            const modal = document.getElementById('chunkModal');
+            const content = document.getElementById('chunkModalContent');
+            
+            let html = '';
+            
+            // Предыдущие чанки
+            if (data.previous && data.previous.length > 0) {
+                html += '<div class="neighbor-chunks previous">';
+                html += '<h4>⏮ Предыдущие фрагменты</h4>';
+                data.previous.forEach((chunk, i) => {
+                    html += `
+                        <div class="neighbor-chunk">
+                            <div class="chunk-book">📖 ${chunk.book}</div>
+                            <div class="chunk-text">${chunk.full_content}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            // Текущий чанк
+            html += '<div class="current-chunk">';
+            html += '<h4>📍 Текущий фрагмент</h4>';
+            html += `
+                <div class="chunk-book">📖 ${data.current.book}</div>
+                <div class="chunk-text">${data.current.full_content}</div>
+            `;
+            html += '</div>';
+            
+            // Следующие чанки
+            if (data.next && data.next.length > 0) {
+                html += '<div class="neighbor-chunks next">';
+                html += '<h4>⏭ Следующие фрагменты</h4>';
+                data.next.forEach((chunk, i) => {
+                    html += `
+                        <div class="neighbor-chunk">
+                            <div class="chunk-book">📖 ${chunk.book}</div>
+                            <div class="chunk-text">${chunk.full_content}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            content.innerHTML = html;
+            modal.style.display = 'flex';
+        }
+        
+        function closeChunkModal() {
+            document.getElementById('chunkModal').style.display = 'none';
+        }
+        
+        // Закрытие по ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeChunkModal();
+            }
+        });
 
         // Answer
         async function getAnswer() {
@@ -771,7 +988,7 @@
 
         // Utility
         function showError(containerId, message) {
-            document.getElementById(containerId).innerHTML = 
+            document.getElementById(containerId).innerHTML =
                 `<div class="error-message">❌ ${message}</div>`;
         }
 
@@ -779,5 +996,18 @@
         loadBooks();
         setInterval(checkIndexingStatus, 3000);
     </script>
+    
+    <!-- Модальное окно для чанков -->
+    <div id="chunkModal" class="chunk-modal" onclick="if(event.target === this) closeChunkModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📖 Контекст фрагмента</h2>
+                <button class="close-btn" onclick="closeChunkModal()">✕</button>
+            </div>
+            <div id="chunkModalContent" class="modal-body">
+                <!-- Контент загружается через JS -->
+            </div>
+        </div>
+    </div>
 </body>
 </html>
