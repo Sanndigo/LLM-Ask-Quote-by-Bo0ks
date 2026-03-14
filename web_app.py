@@ -257,7 +257,7 @@ def reindex():
                 'main_processor.py',
                 '--step', 'all',
                 '--threshold', '0.45'
-            ], capture_output=True, text=True, timeout=600)
+            ], capture_output=True, text=True)  # Без таймаута - ждём пока закончится
             
             print(result.stdout)
             if result.stderr:
@@ -272,8 +272,6 @@ def reindex():
             with rag_lock:
                 rag = None  # Сброс для перезагрузки
 
-        except subprocess.TimeoutExpired:
-            print("Ошибка: индексация превысила таймаут (10 мин)")
         except Exception as e:
             print(f"Ошибка индексации: {e}")
         finally:
