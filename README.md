@@ -2,15 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
-
----
-
-**🌐 Language / Язык:** 
-- **[🇷🇺 Русский](README.md)** (текущий)
-- **[🇬🇧 English](README.en.md)**
-
----
+[![Version](https://img.shields.io/badge/version-v0.4.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
 
 Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием **семантического чанкинга** и **Mistral AI API**.
 
