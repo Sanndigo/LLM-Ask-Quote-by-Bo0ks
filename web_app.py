@@ -239,36 +239,50 @@ def upload_book():
 def reindex():
     """Переиндексация книг"""
     global indexing_in_progress, rag
-    
+
     if indexing_in_progress:
         return jsonify({'error': 'Индексация уже идет'}), 400
-    
+
     def run_indexing():
         global indexing_in_progress, rag
         indexing_in_progress = True
         try:
-            from main_processor import process_txt_files, create_embeddings
+            import subprocess
+            import sys
             
-            # Обработка файлов
-            process_txt_files('data', 'processed', chunk_size=256, overlap=64)
+            # Запускаем main_processor.py с правильными параметрами
+            print("Запуск индексации...")
+            result = subprocess.run([
+                sys.executable,
+                'main_processor.py',
+                '--step', 'all',
+                '--threshold', '0.45'
+            ], capture_output=True, text=True, timeout=600)
             
-            # Создание эмбеддингов
-            create_embeddings('processed', 'embeddings', 
-                            model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
+            print(result.stdout)
+            if result.stderr:
+                print(result.stderr)
+            
+            if result.returncode != 0:
+                raise Exception(f"Ошибка индексации: {result.stderr}")
+            
+            print("Индексация завершена успешно!")
             
             # Перезагружаем RAG
             with rag_lock:
                 rag = None  # Сброс для перезагрузки
-            
+
+        except subprocess.TimeoutExpired:
+            print("Ошибка: индексация превысила таймаут (10 мин)")
         except Exception as e:
             print(f"Ошибка индексации: {e}")
         finally:
             indexing_in_progress = False
-    
+
     # Запускаем в отдельном потоке
     thread = threading.Thread(target=run_indexing)
     thread.start()
-    
+
     return jsonify({
         'success': True,
         'message': 'Индексация запущена в фоновом режиме'
