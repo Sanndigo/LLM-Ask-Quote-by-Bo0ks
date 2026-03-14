@@ -2,9 +2,6 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
-<<<<<<< HEAD
-[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
-=======
 [![Version](https://img.shields.io/badge/version-v1.1.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
 
 
