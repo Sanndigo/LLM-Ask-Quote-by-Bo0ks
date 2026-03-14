@@ -4,6 +4,14 @@
 [![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v1.0.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
 
+---
+
+**🌐 Language / Язык:** 
+- **[🇷🇺 Русский](README.md)** (текущий)
+- **[🇬🇧 English](README.en.md)**
+
+---
+
 Интеллектуальная система поиска и ответов на вопросы по текстовым документам с использованием **семантического чанкинга** и **Mistral AI API**.
 
 ## ✨ Возможности
