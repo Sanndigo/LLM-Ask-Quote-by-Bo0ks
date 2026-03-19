@@ -3,6 +3,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Non-Commercial](https://img.shields.io/badge/license-NC--BY-red.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v1.1.0-green.svg)](https://github.com/Sanndigo/LLM-Ask-Quote-by-Bo0ks)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1UDzgvs7KDb4Ynz0drd8B1p1KYN9Ha7Dt?usp=sharing)
 
 
 ---
@@ -91,6 +92,11 @@ python web_app.py
 ```bash
 python book_rag.py
 ```
+
+## 📶 Запуск в Google Collab
+-Перейдите по ссылке и следуйте инструкциям:
+
+https://colab.research.google.com/drive/1UDzgvs7KDb4Ynz0drd8B1p1KYN9Ha7Dt?usp=sharing
 
 ## 📋 Требования
 
